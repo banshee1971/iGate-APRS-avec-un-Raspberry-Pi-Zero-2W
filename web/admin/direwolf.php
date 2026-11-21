@@ -77,6 +77,35 @@ aprs_flash_box($flash, $errors);
         </p>
     </div>
 
+    <!-- Vu-mètre -->
+    <div class="card">
+        <h2>📶 Signal en direct <span class="muted" id="vu-state"></span></h2>
+        <div class="vu-wrap">
+            <svg id="vu" class="vu" viewBox="0 0 200 125" aria-label="Indicateur de signal">
+                <g id="vu-scale"></g>
+                <polygon id="vu-peak" points="100,14 96,6 104,6" fill="#c62828" class="vu-rot"></polygon>
+                <line id="vu-needle" class="vu-rot" x1="100" y1="112" x2="100" y2="26" stroke="#212121" stroke-width="2.5" stroke-linecap="round"></line>
+                <circle cx="100" cy="112" r="6" fill="#212121"></circle>
+                <text x="100" y="98" text-anchor="middle" font-size="9" fill="#666">SIGNAL</text>
+            </svg>
+            <div class="vu-side">
+                <div class="bigstat" id="vu-value">–</div>
+                <div class="muted" id="vu-label">en attente de mesures…</div>
+                <div style="margin-top: 14px;"><strong>Niveau audio</strong> <span class="muted" id="vu-dbfs"></span></div>
+                <div class="vu-bar"><i id="vu-dbfs-bar"></i></div>
+                <div class="gauge-scale"><span>-60 dB</span><span>-30</span><span>0 dB</span></div>
+                <div class="muted" id="vu-clip" style="margin-top: 6px;"></div>
+            </div>
+        </div>
+        <canvas id="vu-hist" class="vu-hist" title="Signal, 2 dernières minutes"></canvas>
+        <div class="gauge-scale"><span>-2 min</span><span>-1 min</span><span>maintenant</span></div>
+        <p class="help muted" style="margin-top: 8px;">
+            L'aiguille mesure la présence d'un signal sur la fréquence, comme un squelch : au repos (souffle seulement)
+            elle reste près de 0 ; un paquet APRS la fait sauter pendant environ une seconde. Sans antenne, elle bouge
+            très peu. Le niveau audio ne doit pas toucher 0 dB (saturation).
+        </p>
+    </div>
+
     <!-- Dongle SDR -->
     <div class="card">
         <h2>📻 Dongle SDR</h2>
@@ -318,6 +347,84 @@ aprs_flash_box($flash, $errors);
     load();
     setInterval(load, 5000);
     document.addEventListener('visibilitychange', load);
+
+    // ------------------------------------------------------------ vu-mètre
+    var CX = 100, CY = 112, R = 88;
+    function angle(v) { return -60 + 120 * Math.max(0, Math.min(100, v)) / 100; }
+    function pt(v, r) {
+        var a = angle(v) * Math.PI / 180;
+        return [CX + r * Math.sin(a), CY - r * Math.cos(a)];
+    }
+    (function drawScale() {
+        var svg = '', zones = [[0, 20, '#90a4ae'], [20, 55, '#ffb300'], [55, 100, '#43a047']];
+        zones.forEach(function (z) {
+            var a = pt(z[0], R), b = pt(z[1], R);
+            svg += '<path d="M' + a[0].toFixed(2) + ' ' + a[1].toFixed(2) + ' A' + R + ' ' + R + ' 0 0 1 ' +
+                   b[0].toFixed(2) + ' ' + b[1].toFixed(2) + '" stroke="' + z[2] + '" stroke-width="9" fill="none"/>';
+        });
+        for (var v = 0; v <= 100; v += 10) {
+            var o = pt(v, R + 6), i = pt(v, v % 50 === 0 ? R - 10 : R - 6);
+            svg += '<line x1="' + o[0].toFixed(2) + '" y1="' + o[1].toFixed(2) + '" x2="' + i[0].toFixed(2) + '" y2="' + i[1].toFixed(2) +
+                   '" stroke="#444" stroke-width="' + (v % 50 === 0 ? 1.6 : 0.8) + '"/>';
+            if (v % 25 === 0 || v === 0) {
+                var t = pt(v, R - 20);
+                svg += '<text x="' + t[0].toFixed(2) + '" y="' + (t[1] + 3).toFixed(2) + '" text-anchor="middle" font-size="8" fill="#555">' + v + '</text>';
+            }
+        }
+        $('vu-scale').innerHTML = svg;
+    })();
+
+    var peak = 0, hist = [], HIST = 480;   // 2 min à 4 mesures/s
+    function setNeedle(el, v) { el.style.transform = 'rotate(' + angle(v).toFixed(1) + 'deg)'; }
+    function drawHist() {
+        var c = $('vu-hist'), dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+        if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+        var ctx = c.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+        var col = w / HIST, off = HIST - hist.length;
+        hist.forEach(function (v, i) {
+            ctx.fillStyle = v >= 55 ? '#43a047' : (v >= 20 ? '#ffb300' : '#b0bec5');
+            var bh = Math.max(1, v / 100 * h);
+            ctx.fillRect((off + i) * col, h - bh, Math.max(1, col), bh);
+        });
+    }
+    var lastT = 0;
+    function renderLevel(d) {
+        if (!d || d.age === null || d.age > 3) {
+            $('vu-state').textContent = '· aucune mesure (iGate arrêté ?)';
+            $('vu-value').textContent = '–';
+            $('vu-label').textContent = 'Le vu-mètre fonctionne quand le service iGate tourne.';
+            setNeedle($('vu-needle'), 0);
+            return;
+        }
+        $('vu-state').textContent = '';
+        var s = d.signal;
+        setNeedle($('vu-needle'), s);
+        peak = Math.max(s, peak - 2);           // aiguille de crête qui redescend doucement
+        setNeedle($('vu-peak'), peak);
+        $('vu-value').textContent = Math.round(s) + ' %';
+        $('vu-label').textContent = s >= 55 ? '📡 signal présent' : (s >= 20 ? 'signal faible ou bruit' : 'souffle seulement (fréquence libre)');
+        var db = Math.max(-60, Math.min(0, d.dbfs));
+        $('vu-dbfs').textContent = d.dbfs.toFixed(1) + ' dBFS · crête ' + Math.round(d.peak) + ' %';
+        $('vu-dbfs-bar').style.width = ((db + 60) / 60 * 100).toFixed(1) + '%';
+        $('vu-dbfs-bar').style.background = d.clip ? '#c62828' : (db > -6 ? '#ffb300' : '#667eea');
+        $('vu-clip').innerHTML = d.clip ? '<span class="pill bad">saturation : baissez le gain</span>' : '';
+        if (d.t !== lastT) { hist.push(s); if (hist.length > HIST) hist.shift(); lastT = d.t; drawHist(); }
+    }
+    var vuBusy = false;
+    function loadLevel() {
+        if (vuBusy || document.hidden) return;
+        vuBusy = true;
+        fetch('api.php?what=level', {credentials: 'same-origin'})
+            .then(function (r) { return r.json(); })
+            .then(renderLevel)
+            .catch(function () {})
+            .then(function () { vuBusy = false; });
+    }
+    loadLevel();
+    setInterval(loadLevel, 400);
+    window.addEventListener('resize', drawHist);
 })();
 </script>
 <?php aprs_admin_footer();

@@ -155,3 +155,12 @@ input.readonly-code { background: #f3f0ff; font-family: Consolas, monospace; fon
 .report-call { font-size: 1.7em; font-weight: 700; }
 .report-toggle { display: flex; gap: 15px; align-items: center; }
 .big-pill { font-size: 1em; padding: 6px 14px; }
+
+/* Vu-mètre (page Direwolf) */
+.vu-wrap { display: flex; gap: 25px; align-items: center; flex-wrap: wrap; }
+.vu { width: 300px; max-width: 100%; height: auto; background: linear-gradient(#fffdf5, #f3efe0); border-radius: 10px; border: 1px solid #ddd; }
+.vu-rot { transform-box: view-box; transform-origin: 100px 112px; transition: transform .35s ease-out; }
+.vu-side { flex: 1; min-width: 220px; }
+.vu-bar { height: 14px; background: #eceff1; border-radius: 7px; overflow: hidden; margin-top: 6px; }
+.vu-bar i { display: block; height: 100%; width: 0; background: #667eea; transition: width .3s; }
+.vu-hist { width: 100%; height: 50px; display: block; margin-top: 15px; background: #f8f9fa; border-radius: 5px; }

@@ -250,7 +250,6 @@ def action_apply(env):
         'PASSCODE': passcode,
         'IGATE_LINES': igate_lines,
         'IGSERVER': s['igserver'],
-        'IGFILTER': s['igfilter'],
         'BEACON_LINE': beacon,
         'FREQ': s['freq'],
         'FREQ_LABEL': s['freq'].rstrip('M') + ' MHz',

@@ -14,6 +14,13 @@ if ($what === 'metrics') {
     echo json_encode(api_metrics(), JSON_UNESCAPED_UNICODE);
 } elseif ($what === 'direwolf') {
     echo json_encode(api_direwolf(), JSON_UNESCAPED_UNICODE);
+} elseif ($what === 'level') {
+    // Vu-mètre : écrit 4 fois par seconde par aprs-audio-tap (en mémoire vive)
+    $lv = is_readable('/run/aprs-igate/level.json') ? json_decode((string)@file_get_contents('/run/aprs-igate/level.json'), true) : null;
+    if (is_array($lv)) {
+        $lv['age'] = round(microtime(true) - ($lv['t'] ?? 0), 1);
+    }
+    echo json_encode($lv ?: ['age' => null]);
 } elseif ($what === 'aprsfi') {
     echo json_encode(api_aprsfi(), JSON_UNESCAPED_UNICODE);
 } else {

@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""
+aprs-audio-tap — relais audio entre rtl_fm et Direwolf, avec vu-mètre.
+
+    rtl_fm ... - | aprs-audio-tap 48000 | direwolf ... -
+
+L'audio (16 bits signés, mono) passe sans aucune modification. Quatre fois
+par seconde, le relais publie dans /run/aprs-igate/level.json (mémoire vive,
+aucune écriture sur la carte SD) :
+
+  dbfs    niveau audio moyen (dB sous la pleine échelle)
+  peak    crête en % de la pleine échelle (100 = saturation)
+  signal  0-100 : présence d'un signal sur la fréquence
+
+Indicateur de signal : sans signal, le démodulateur FM sort un souffle plein
+d'aigus. Quand une porteuse arrive, ce souffle disparaît (« quieting ») et il
+ne reste que la voix ou les tonalités AFSK, beaucoup plus graves. On compare
+donc l'énergie des aigus (différence entre échantillons voisins) à l'énergie
+totale, par rapport au niveau de souffle habituel mesuré en continu.
+"""
+import array
+import json
+import math
+import os
+import sys
+import time
+from collections import deque
+
+OUT = os.environ.get('APRS_LEVEL_FILE', '/run/aprs-igate/level.json')
+RATE = int(sys.argv[1]) if len(sys.argv) > 1 else 48000
+BLOCK = (RATE // 4) * 2          # 0,25 s d'audio, en octets
+STEP = 3                          # un échantillon sur 3 pour les calculs (CPU)
+TONE_RATIO = 2 * math.sin(math.pi * 1700 / RATE)   # rapport typique d'un signal AFSK
+
+
+class Meter:
+    def __init__(self):
+        self.ratios = deque(maxlen=4 * 120)   # 2 minutes d'historique
+        self.out_dir_ok = os.path.isdir(os.path.dirname(OUT))
+
+    def measure(self, block):
+        a = array.array('h')
+        a.frombytes(block)
+        if sys.byteorder == 'big':
+            a.byteswap()
+        x = a[0::STEP]
+        y = a[1::STEP]
+        n = min(len(x), len(y))
+        if n == 0:
+            return
+        sx = 0
+        sd = 0
+        for i in range(n):
+            p = x[i]
+            sx += p * p
+            q = y[i] - p
+            sd += q * q
+        peak = max(max(a), -min(a))
+        if sx == 0:
+            dbfs, ratio = -120.0, 0.0
+        else:
+            dbfs = 10 * math.log10(sx / n / (32768.0 * 32768.0))
+            ratio = math.sqrt(sd / sx)
+        self.ratios.append(ratio)
+        # Souffle de référence : la valeur haute habituelle (la fréquence est
+        # silencieuse la plupart du temps)
+        ordered = sorted(self.ratios)
+        noise_ref = ordered[int(len(ordered) * 0.8)] if ordered else ratio
+        span = noise_ref - TONE_RATIO
+        if span < 0.15 or dbfs < -90:
+            signal = 0.0
+        else:
+            signal = max(0.0, min(100.0, 100.0 * (noise_ref - ratio) / span))
+        return {
+            't': round(time.time(), 2), 'rate': RATE,
+            'dbfs': round(dbfs, 1), 'peak': round(100.0 * peak / 32768.0, 1),
+            'clip': peak >= 32000, 'signal': round(signal, 1),
+            'ratio': round(ratio, 3), 'noise_ref': round(noise_ref, 3),
+        }
+
+    def publish(self, data):
+        if not self.out_dir_ok:
+            return
+        tmp = OUT + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(data, f)
+        os.replace(tmp, OUT)
+
+
+def main():
+    fin = sys.stdin.buffer.fileno()
+    fout = sys.stdout.buffer.fileno()
+    meter = Meter()
+    pending = bytearray()
+    while True:
+        data = os.read(fin, 65536)
+        if not data:
+            break
+        # 1. Faire suivre l'audio à Direwolf, en priorité
+        view = memoryview(data)
+        try:
+            while view:
+                view = view[os.write(fout, view):]
+        except BrokenPipeError:
+            break
+        # 2. Mesurer (une erreur de mesure ne doit jamais couper l'audio)
+        pending += data
+        while len(pending) >= BLOCK:
+            block = bytes(pending[:BLOCK])
+            del pending[:BLOCK]
+            try:
+                result = meter.measure(block)
+                if result:
+                    meter.publish(result)
+            except Exception:
+                pass
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

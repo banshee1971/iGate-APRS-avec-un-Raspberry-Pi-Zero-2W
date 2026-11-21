@@ -182,6 +182,7 @@ install -m 644 "$KIT_DIR"/templates/*.tmpl "$KIT_DIR"/templates/99-rtlsdr-restar
 install -m 644 "$KIT_DIR/web/lib/settings.schema.json" /usr/local/share/aprs-igate/
 install -m 755 "$KIT_DIR/backend/aprs-apply-config" /usr/local/sbin/aprs-apply-config
 install -m 755 "$KIT_DIR/backend/aprs-admin-passwd" /usr/local/sbin/aprs-admin-passwd
+install -m 755 "$KIT_DIR/backend/aprs-audio-tap" /usr/local/bin/aprs-audio-tap
 
 # État partagé avec l'interface web (www-data y écrit les réglages et demandes)
 install -d -o root -g www-data -m 2775 /var/lib/aprs-igate

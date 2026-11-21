@@ -7,7 +7,10 @@ Wants=network-online.target
 Type=simple
 User=${IGATE_USER}
 WorkingDirectory=${IGATE_HOME}
-ExecStart=/bin/bash -c '/usr/bin/rtl_fm -f ${FREQ} -s ${SAMPLE_RATE} ${RTL_OPTS} -p ${PPM} - | /usr/local/bin/direwolf -c ${IGATE_HOME}/direwolf.conf -r ${SAMPLE_RATE} -D 1 -t 0 -'
+# /run/aprs-igate/level.json : vu-mètre de la page /admin -> Direwolf (en mémoire vive)
+RuntimeDirectory=aprs-igate
+RuntimeDirectoryMode=0755
+ExecStart=/bin/bash -c '/usr/bin/rtl_fm -f ${FREQ} -s ${SAMPLE_RATE} ${RTL_OPTS} -p ${PPM} - | /usr/local/bin/aprs-audio-tap ${SAMPLE_RATE} | /usr/local/bin/direwolf -c ${IGATE_HOME}/direwolf.conf -r ${SAMPLE_RATE} -D 1 -t 0 -'
 Restart=always
 RestartSec=10
 

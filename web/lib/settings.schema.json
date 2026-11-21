@@ -293,14 +293,6 @@
           ]
         },
         {
-          "key": "igfilter",
-          "label": "Filtre APRS-IS",
-          "type": "text",
-          "default": "m/500",
-          "pattern": "^[A-Za-z0-9/ .,*-]{0,80}$",
-          "help": "Filtre côté serveur (ex.: m/500 = 500 km autour de vous)."
-        },
-        {
           "key": "aprsfi_apikey",
           "label": "Clé API aprs.fi (optionnelle)",
           "type": "text",

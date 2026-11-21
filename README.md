@@ -111,7 +111,10 @@ Tout ce qui sert à **mieux capter** :
 - **dongle SDR** : modèle détecté (ex. RTL-SDR Blog V3/V4, clé générique), chipset,
   tuner (R820T, R828D, E4000…), numéro de série, vitesse USB, avec des conseils si
   quelque chose cloche (aucun dongle, pilote DVB actif, dongle occupé, SDR non compatible) ;
-- **niveau audio** des derniers paquets sur une jauge (zone idéale 50-70) ;
+- **vu-mètre à aiguille en direct** : l'aiguille monte quand un signal est présent sur la
+  fréquence (comme un squelch), avec le niveau audio, la saturation et l'historique des
+  2 dernières minutes : idéal pour vérifier l'antenne et le gain ;
+- **niveau audio** des derniers paquets décodés sur une jauge (zone idéale 50-70) ;
 - **paquets décodés** : 15 min, 1 h, 24 h, stations uniques, histogramme par heure ;
 - **journal de Direwolf** en direct, en couleurs ;
 - **réglages** : fréquence, gain, ppm, gain automatique, taux d'échantillonnage,

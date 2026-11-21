@@ -18,8 +18,8 @@ MODEM 1200 ${MODEM_OPTS}
 FIX_BITS ${FIX_BITS}
 
 # Configuration iGate
-IGTXVIA 0,WIDE1-1
-IGFILTER ${IGFILTER}
+# Réception seulement : aucun filtre ni IGTXVIA, le serveur n'envoie donc
+# pas le trafic Internet de la région (inutile sans émetteur radio).
 
 # Position de l'iGate (balise envoyée vers APRS-IS)
 ${BEACON_LINE}
