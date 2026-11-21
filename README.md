@@ -67,27 +67,40 @@ Mot de passe oublié ? En SSH : `sudo aprs-admin-passwd`. On peut aussi le chang
 ## 3. Configurer dans le navigateur
 
 Ouvrez **`http://aprs-igate/admin`** (ou `http://<adresse-ip-du-pi>/admin`) et connectez-vous.
-La page a quatre onglets.
+La page a cinq onglets (plus un lien 🔋 PiSugar si celui-ci est installé).
 
 ### ⚙️ Configuration
 
 | Section | Ce qu'on y règle |
 |---|---|
-| 📡 Station | Indicatif, SSID, passcode APRS-IS (calculé automatiquement) |
 | 📍 Position et balise | Latitude/longitude (cliquez sur la carte), balise oui/non, intervalle, commentaire |
-| 🌐 Serveur APRS-IS | Serveur régional, filtre |
 | 🖥️ Affichage | Titre et sous-titre de la page, période par défaut de la carte |
 | 💾 Données et sauvegardes | Durée de conservation des paquets, fréquence et rétention des sauvegardes, clé USB |
 | 🔌 Matériel | Hub USB alimenté par le Pi |
 | 🗺️ Carte et cache | Taille max du cache de tuiles, rafraîchissement, zone de pré-téléchargement |
 
-Cliquez sur **« Enregistrer et appliquer »** : Direwolf, les services et les tâches
+Pour une première installation : entrez votre indicatif dans l'onglet **📡 Reporting aprs.fi**,
+puis votre position ici. Cliquez sur **« Enregistrer et appliquer »** : Direwolf, les services et les tâches
 planifiées sont régénérés et redémarrés automatiquement. Tant que l'indicatif vaut
 `N0CALL`, l'iGate ne se connecte pas à APRS-IS.
 
 Cet onglet affiche aussi l'état du système (services, modèle du dongle, paquets du jour,
 cache) et des boutons : redémarrer les services, sauvegarder, copier sur clé USB,
 pré-télécharger ou vider les tuiles, redémarrer le Pi.
+
+### 📡 Reporting aprs.fi
+
+L'envoi des paquets reçus vers APRS-IS, le réseau qui alimente [aprs.fi](https://aprs.fi) :
+
+- **indicatif** et **SSID** : chaque SSID est présenté avec son icône et son usage
+  recommandé (🏠 -0 station principale, 🚗 -9 mobile, 🌐 -10 iGate, ⛅ -13 météo…) ;
+- **passcode** : calculé automatiquement pendant que vous tapez votre indicatif ;
+- boutons **Enable / Disable** : désactivé, l'iGate continue de recevoir et d'afficher
+  les paquets localement, mais n'envoie plus rien sur Internet ;
+- **dernier reporting réussi** : connexion au serveur, passcode accepté ou refusé, dernier
+  paquet relayé, balise de l'iGate ;
+- **confirmation par aprs.fi** (optionnelle) : avec votre clé API aprs.fi (gratuite, dans
+  aprs.fi → Mon compte), la page affiche quand aprs.fi a reçu votre station pour la dernière fois.
 
 ### 🐺 Direwolf
 
@@ -217,6 +230,9 @@ bash pisugar-power-manager.sh -c release
 ```
 
 Gestion de la batterie : `http://<ip-du-pi>:8421`. Pour l'allumer : appui court, puis appui long.
+
+Dès que le PiSugar est installé et actif, un lien **🔋 PiSugar** (avec le niveau de la
+batterie) apparaît dans les onglets de `/admin`. Sans PiSugar, pas de lien.
 
 ---
 

@@ -6,6 +6,7 @@ require_once __DIR__ . '/auth.php';
 
 const APRS_ADMIN_TABS = [
     'config'   => ['./',             '⚙️ Configuration'],
+    'reporting'=> ['reporting.php',  '📡 Reporting aprs.fi'],
     'direwolf' => ['direwolf.php',   '🐺 Direwolf'],
     'system'   => ['system.php',     '📊 Système'],
     'account'  => ['account.php',    '👤 Compte'],
@@ -22,7 +23,7 @@ function aprs_admin_header($title, $active, array $opts = []) {
     <?php if (!empty($opts['refresh'])): ?><meta http-equiv="refresh" content="<?php echo intval($opts['refresh']); ?>"><?php endif; ?>
     <title><?php echo h($title); ?> - <?php echo h(aprs_title($s)); ?></title>
     <?php if (!empty($opts['leaflet'])) echo aprs_leaflet_tags(); ?>
-    <link rel="stylesheet" href="/admin/admin.css?v=2">
+    <link rel="stylesheet" href="/admin/admin.css?v=3">
 </head>
 <body class="<?php echo h($opts['body_class'] ?? ''); ?>">
 <div class="container">
@@ -43,6 +44,12 @@ function aprs_admin_header($title, $active, array $opts = []) {
         <?php foreach (APRS_ADMIN_TABS as $id => [$href, $label]): ?>
             <a href="<?php echo h($href); ?>" class="<?php echo $id === $active ? 'active' : ''; ?>"><?php echo h($label); ?></a>
         <?php endforeach; ?>
+        <?php if ($pisugar = aprs_pisugar()): ?>
+            <a href="<?php echo h($pisugar['url']); ?>" target="_blank" rel="noopener" class="ext"
+               title="Interface du PiSugar (batterie)">🔋 PiSugar<?php
+                if ($pisugar['battery'] !== null) echo ' ' . h(round($pisugar['battery'])) . ' %';
+                if ($pisugar['charging']) echo ' ⚡'; ?> ↗</a>
+        <?php endif; ?>
     </nav>
     <?php
 }
@@ -108,7 +115,22 @@ function aprs_render_sections(array $sections, array $settings, array $errors, a
                         <label><input type="checkbox" id="f_<?php echo h($key); ?>" name="<?php echo h($key); ?>" <?php echo $val ? 'checked' : ''; ?>> <?php echo h($f['label']); ?></label>
                     <?php else: ?>
                         <label for="f_<?php echo h($key); ?>"><?php echo h($f['label']); ?></label>
-                        <?php if ($f['type'] === 'choice'): ?>
+                        <?php if (($f['widget'] ?? '') === 'ssid'): ?>
+                            <div class="ssid-pick">
+                                <span class="ssid-icon" id="ssid-icon"><?php echo APRS_SSIDS[max(0, min(15, (int)$val))][0]; ?></span>
+                                <select id="f_<?php echo h($key); ?>" name="<?php echo h($key); ?>">
+                                    <?php foreach (APRS_SSIDS as $n => [$icon, $short, $long]): ?>
+                                        <option value="<?php echo $n; ?>" data-icon="<?php echo h($icon); ?>" data-desc="<?php echo h($long); ?>"
+                                            <?php echo (int)$val === $n ? 'selected' : ''; ?>><?php echo h($icon . '  -' . $n . ' : ' . $short); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="help" id="ssid-desc"><?php echo h(APRS_SSIDS[max(0, min(15, (int)$val))][2]); ?></div>
+                        <?php elseif (($f['widget'] ?? '') === 'passcode'):
+                            $pc = aprs_is_configured($settings) ? aprs_passcode($settings['callsign']) : ''; ?>
+                            <input type="text" id="f_<?php echo h($key); ?>" value="<?php echo h($pc); ?>" readonly
+                                   class="readonly-code" placeholder="Entrez votre indicatif">
+                        <?php elseif ($f['type'] === 'choice'): ?>
                             <select id="f_<?php echo h($key); ?>" name="<?php echo h($key); ?>">
                                 <?php foreach ($f['choices'] as $c): ?>
                                     <option value="<?php echo h($c['value']); ?>" <?php echo (string)$val === (string)$c['value'] ? 'selected' : ''; ?>><?php echo h($c['label']); ?></option>
@@ -124,9 +146,7 @@ function aprs_render_sections(array $sections, array $settings, array $errors, a
                         <?php endif; ?>
                     <?php endif; ?>
                     <?php if ($err): ?><div class="err">⚠️ <?php echo h($err); ?></div><?php endif; ?>
-                    <?php if ($key === 'passcode' && $settings['passcode'] === '' && aprs_is_configured($settings)): ?>
-                        <div class="help">Passcode calculé pour <?php echo h($settings['callsign']); ?> : <strong><?php echo aprs_passcode($settings['callsign']); ?></strong></div>
-                    <?php elseif (!empty($f['help'])): ?>
+                    <?php if (!empty($f['help']) && ($f['widget'] ?? '') !== 'ssid'): ?>
                         <div class="help"><?php echo h($f['help']); ?></div>
                     <?php endif; ?>
                 </div>
@@ -152,6 +172,56 @@ function aprs_svc_state($unit) {
 function aprs_svc_pill($state) {
     $cls = $state === 'active' ? 'ok' : ($state === '?' ? 'unk' : 'bad');
     return '<span class="pill ' . $cls . '">' . h($state) . '</span>';
+}
+
+// ------------------------------------------------------------------ SSID
+// Recommandations APRS pour les SSID : [icône, court, description]
+const APRS_SSIDS = [
+    0  => ['🏠', 'station principale', 'Votre station principale, habituellement fixe et capable de messages.'],
+    1  => ['📟', 'station additionnelle', 'Station additionnelle générique : digipeater, mobile, météo, etc.'],
+    2  => ['📟', 'station additionnelle', 'Station additionnelle générique : digipeater, mobile, météo, etc.'],
+    3  => ['📟', 'station additionnelle', 'Station additionnelle générique : digipeater, mobile, météo, etc.'],
+    4  => ['📟', 'station additionnelle', 'Station additionnelle générique : digipeater, mobile, météo, etc.'],
+    5  => ['📱', 'autres réseaux, téléphones', 'Autres réseaux : D-Star, téléphones intelligents (iPhone, Android), etc.'],
+    6  => ['🛰️', 'activité spéciale', 'Activité spéciale : satellites, camping, 6 mètres, etc.'],
+    7  => ['🚶', 'portatif', 'Portatif (walkie-talkie, HT) ou autre appareil porté par une personne.'],
+    8  => ['⛵', 'bateau, VR, 2e mobile', 'Bateaux, voiliers, VR ou deuxième station mobile principale.'],
+    9  => ['🚗', 'mobile principal', 'Station mobile principale (habituellement capable de messages).'],
+    10 => ['🌐', 'iGate, Internet', 'Internet : iGates, Echolink, Winlink, AVRS, APRN, etc. Le bon choix pour cet iGate.'],
+    11 => ['🎈', 'ballon, aéronef', 'Ballons, aéronefs, engins spatiaux, etc.'],
+    12 => ['📍', 'traceur, APRStt', 'APRStt, DTMF, RFID, appareils, traceurs à sens unique, etc.'],
+    13 => ['⛅', 'station météo', 'Stations météo.'],
+    14 => ['🚚', 'camionneur', 'Camionneurs ou conducteurs à temps plein.'],
+    15 => ['📟', 'station additionnelle', 'Station additionnelle générique.'],
+];
+
+// --------------------------------------------------------------- PiSugar
+/**
+ * PiSugar détecté ? (pisugar-server : interface web sur le port 8421,
+ * API texte sur le port 8423). Retourne null s'il n'est pas installé/actif.
+ */
+function aprs_pisugar() {
+    static $cache = false;
+    if ($cache !== false) return $cache;
+    $cache = null;
+    $web = @fsockopen('127.0.0.1', 8421, $errno, $errstr, 0.3);
+    if (!$web) return null;
+    fclose($web);
+    $host = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_ADDR'] ?? 'localhost'));
+    if (!preg_match('/^[A-Za-z0-9.\-]+$|^\[[0-9a-fA-F:]+\]$/', $host)) $host = $_SERVER['SERVER_ADDR'] ?? 'localhost';
+    $cache = ['url' => 'http://' . $host . ':8421', 'battery' => null, 'charging' => false];
+    $api = @fsockopen('127.0.0.1', 8423, $errno, $errstr, 0.3);
+    if ($api) {
+        stream_set_timeout($api, 0, 400000);
+        foreach (['battery', 'battery_charging'] as $q) {
+            fwrite($api, "get $q\n");
+            $line = (string)fgets($api, 128);
+            if (preg_match('/^battery:\s*([\d.]+)/', $line, $m)) $cache['battery'] = (float)$m[1];
+            if (preg_match('/^battery_charging:\s*true/i', $line)) $cache['charging'] = true;
+        }
+        fclose($api);
+    }
+    return $cache;
 }
 
 // ------------------------------------------------------------ dongle SDR

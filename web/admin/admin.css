@@ -136,3 +136,22 @@ table.bt-ps tr:nth-child(even) td { background: #121821; }
     .card { padding: 15px; }
     .bt-grid { grid-template-columns: 1fr; }
 }
+
+/* Page Reporting */
+.tabs a.ext { background: rgba(255,255,255,0.1); border: 1px dashed rgba(255,255,255,0.5); }
+body.btop .tabs a.ext { border-color: #3a4b63; }
+.btn-ok { background: #2e7d32; }
+.btn-ok:hover { background: #256528; }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.ssid-pick { display: flex; gap: 10px; align-items: center; }
+.ssid-pick select { flex: 1; }
+.ssid-icon { font-size: 1.8em; line-height: 1; width: 1.3em; text-align: center; }
+.ssid-icon.big { font-size: 3em; }
+input.readonly-code { background: #f3f0ff; font-family: Consolas, monospace; font-size: 1.2em !important; font-weight: 600; letter-spacing: 2px; color: #4b3f9e; }
+.report-state { border-left: 6px solid #c62828; }
+.report-state.on { border-left-color: #2e7d32; }
+.report-main { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
+.report-station { display: flex; gap: 15px; align-items: center; }
+.report-call { font-size: 1.7em; font-weight: 700; }
+.report-toggle { display: flex; gap: 15px; align-items: center; }
+.big-pill { font-size: 1em; padding: 6px 14px; }

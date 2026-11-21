@@ -273,11 +273,17 @@ ok "Scripts copiés dans $IGATE_HOME"
 # ---------------------------------------------------------------------
 step "7/9 Nginx"
 # ---------------------------------------------------------------------
-PHP_FPM_SOCK="$(ls /run/php/php*-fpm.sock 2>/dev/null | sort -V | tail -n1 || true)"
-if [ -z "$PHP_FPM_SOCK" ]; then
-    PHP_VER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
-    PHP_FPM_SOCK="/run/php/php${PHP_VER}-fpm.sock"
+# Service et socket PHP-FPM d'après la version installée (php8.2-fpm sur
+# Bookworm, php8.4-fpm sur Trixie). Attention : /run/php/php-fpm.sock est un
+# simple lien générique, il n'y a pas de service « php-fpm ».
+PHP_VER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
+PHP_FPM_SERVICE="php${PHP_VER}-fpm"
+if ! systemctl list-unit-files "$PHP_FPM_SERVICE.service" | grep -q "$PHP_FPM_SERVICE"; then
+    PHP_FPM_SERVICE="$(systemctl list-unit-files 'php*-fpm.service' --no-legend | awk '{print $1}' \
+        | grep -E '^php[0-9.]+-fpm\.service$' | sort -V | tail -n1 | sed 's/\.service$//')"
 fi
+[ -n "$PHP_FPM_SERVICE" ] || { echo "Service PHP-FPM introuvable (paquet php-fpm installé ?)"; exit 1; }
+PHP_FPM_SOCK="/run/php/${PHP_FPM_SERVICE}.sock"
 DNS_RESOLVERS="$(awk '/^nameserver/ && $2 !~ /:/ {print $2}' /etc/resolv.conf | head -n2 | tr '\n' ' ')1.1.1.1"
 export PHP_FPM_SOCK DNS_RESOLVERS
 envsubst '${PHP_FPM_SOCK} ${DNS_RESOLVERS}' \
@@ -285,7 +291,6 @@ envsubst '${PHP_FPM_SOCK} ${DNS_RESOLVERS}' \
 ln -sf /etc/nginx/sites-available/aprs-igate /etc/nginx/sites-enabled/aprs-igate
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
-PHP_FPM_SERVICE="$(basename "$PHP_FPM_SOCK" .sock)"
 systemctl enable --now "$PHP_FPM_SERVICE" nginx
 # Redémarrer PHP pour qu'il profite du groupe systemd-journal (page Direwolf)
 systemctl restart "$PHP_FPM_SERVICE" nginx

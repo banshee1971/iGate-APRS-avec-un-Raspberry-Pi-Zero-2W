@@ -32,7 +32,7 @@ $s = aprs_load_settings();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Connexion - <?php echo h(aprs_title($s)); ?></title>
-    <link rel="stylesheet" href="/admin/admin.css?v=2">
+    <link rel="stylesheet" href="/admin/admin.css?v=3">
 </head>
 <body>
 <div class="card login-box">

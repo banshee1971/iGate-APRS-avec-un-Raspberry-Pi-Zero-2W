@@ -229,18 +229,26 @@ def action_apply(env):
 
     station = station_name(s)
     passcode = s['passcode'] or str(aprs_passcode(s['callsign']))
-    if s['beacon']:
-        beacon = (f'PBEACON delay=1 every={s["beacon_every"]} '
-                  f'lat={s["lat"]:.4f} long={s["lon"]:.4f} symbol="igate" '
-                  f'comment="{s["beacon_comment"]}"')
+    if not s['aprsis_enabled']:
+        igate_lines = ('# Reporting vers APRS-IS / aprs.fi DÉSACTIVÉ dans /admin -> Reporting\n'
+                       f'#IGSERVER {s["igserver"]}\n#IGLOGIN {station} {passcode}')
+        beacon = '# Balise désactivée (reporting APRS-IS désactivé)'
     else:
-        beacon = '# Balise désactivée dans /admin'
+        igate_lines = f'IGSERVER {s["igserver"]}\nIGLOGIN {station} {passcode}'
+        if s['beacon']:
+            # sendto=IG : la balise part vers APRS-IS (ce iGate n'a pas d'émetteur radio)
+            beacon = (f'PBEACON sendto=IG delay=1 every={s["beacon_every"]} '
+                      f'lat={s["lat"]:.4f} long={s["lon"]:.4f} symbol="igate" '
+                      f'comment="{s["beacon_comment"]}"')
+        else:
+            beacon = '# Balise désactivée dans /admin'
 
     ctx = {
         'IGATE_USER': env['IGATE_USER'],
         'IGATE_HOME': env['IGATE_HOME'],
         'STATION': station,
         'PASSCODE': passcode,
+        'IGATE_LINES': igate_lines,
         'IGSERVER': s['igserver'],
         'IGFILTER': s['igfilter'],
         'BEACON_LINE': beacon,
@@ -285,6 +293,8 @@ def action_apply(env):
         run(['systemctl', 'start', 'aprs-parser.service'])
 
     msg = f"Réglages appliqués pour {station}."
+    if not s['aprsis_enabled']:
+        msg += " Reporting vers APRS-IS désactivé."
     if reboot_needed:
         msg += " Redémarrez le Pi pour activer le réglage du hub USB."
     return True, msg

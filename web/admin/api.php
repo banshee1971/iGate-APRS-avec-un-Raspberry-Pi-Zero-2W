@@ -14,6 +14,8 @@ if ($what === 'metrics') {
     echo json_encode(api_metrics(), JSON_UNESCAPED_UNICODE);
 } elseif ($what === 'direwolf') {
     echo json_encode(api_direwolf(), JSON_UNESCAPED_UNICODE);
+} elseif ($what === 'aprsfi') {
+    echo json_encode(api_aprsfi(), JSON_UNESCAPED_UNICODE);
 } else {
     http_response_code(404);
     echo json_encode(['error' => 'inconnu']);
@@ -116,6 +118,56 @@ function api_metrics() {
             'rss' => intval($f[21] ?? 0) * 4,   // kio (pages de 4 kio)
         ];
     }
+    return $out;
+}
+
+// ==================================================================== aprs.fi
+// Ce qu'aprs.fi a reçu de la station (nécessite une clé API, gratuite).
+// Mis en cache 5 minutes (1 minute en cas d'erreur) pour respecter aprs.fi.
+function api_aprsfi() {
+    $s = aprs_load_settings();
+    if ($s['aprsfi_apikey'] === '' || !aprs_is_configured($s)) {
+        return ['enabled' => false];
+    }
+    $station = aprs_station($s);
+    $cache_file = APRS_STATE_DIR . '/aprsfi-cache.json';
+    $c = is_readable($cache_file) ? json_decode((string)file_get_contents($cache_file), true) : null;
+    if (is_array($c) && ($c['station'] ?? '') === $station
+        && time() - ($c['fetched'] ?? 0) < (!empty($c['ok']) ? 300 : 60)) {
+        return $c;
+    }
+    $url = 'https://api.aprs.fi/api/get?' . http_build_query([
+        'name' => $station, 'what' => 'loc', 'apikey' => $s['aprsfi_apikey'], 'format' => 'json',
+    ]);
+    $ctx = stream_context_create(['http' => [
+        'timeout' => 6,
+        'ignore_errors' => true,
+        'user_agent' => 'aprs-igate-kit/1.0 (+https://github.com/banshee1971/iGate-APRS-avec-un-Raspberry-Pi-Zero-2W)',
+    ]]);
+    $raw = @file_get_contents($url, false, $ctx);
+    $out = ['enabled' => true, 'station' => $station, 'fetched' => time(), 'ok' => false];
+    if ($raw === false) {
+        $out['error'] = 'aprs.fi injoignable (pas d\'Internet ?)';
+    } else {
+        $j = json_decode($raw, true);
+        if (($j['result'] ?? '') !== 'ok') {
+            $out['error'] = 'aprs.fi : ' . ($j['description'] ?? 'réponse invalide');
+        } else {
+            $out['ok'] = true;
+            $e = $j['entries'][0] ?? null;
+            $out['found'] = $e !== null;
+            if ($e) {
+                $out['entry'] = [
+                    'lasttime' => intval($e['lasttime'] ?? 0),
+                    'comment'  => (string)($e['comment'] ?? ''),
+                    'path'     => (string)($e['path'] ?? ''),
+                    'lat'      => (float)($e['lat'] ?? 0),
+                    'lng'      => (float)($e['lng'] ?? 0),
+                ];
+            }
+        }
+    }
+    @file_put_contents($cache_file, json_encode($out, JSON_UNESCAPED_UNICODE), LOCK_EX);
     return $out;
 }
 
@@ -231,6 +283,8 @@ function api_direwolf() {
         'freq' => $s['freq'], 'gain' => $s['rtl_agc'] ? 'auto' : $s['gain'], 'ppm' => $s['ppm'],
         'rate' => $s['rtl_sample_rate'], 'profile' => $s['dw_modem_profile'] ?: 'défaut',
         'fix_bits' => $s['dw_fix_bits'],
+        'aprsis_enabled' => $s['aprsis_enabled'], 'beacon' => $s['beacon'],
+        'beacon_every' => $s['beacon_every'], 'igserver' => $s['igserver'],
     ];
     $out['now'] = time();
     return $out;

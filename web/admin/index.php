@@ -68,7 +68,7 @@ aprs_admin_header("⚙️ Configuration de l'iGate", 'config', ['leaflet' => tru
 aprs_flash_box($flash, $errors);
 ?>
     <?php if (!aprs_is_configured($settings)): ?>
-        <div class="warn"><strong>👋 Bienvenue !</strong> Entrez au minimum votre <strong>indicatif d'appel</strong> et la <strong>position</strong> de l'iGate, puis cliquez sur « Enregistrer et appliquer ». L'iGate démarrera automatiquement. Les réglages radio et de décodage sont dans l'onglet <a class="back" href="direwolf.php">🐺 Direwolf</a>.</div>
+        <div class="warn"><strong>👋 Bienvenue !</strong> 1) Entrez votre <strong>indicatif d'appel</strong> dans l'onglet <a class="back" href="reporting.php">📡 Reporting aprs.fi</a> ; 2) placez l'iGate sur la carte ci-dessous et cliquez sur « Enregistrer et appliquer ». L'iGate démarrera automatiquement. Les réglages radio et de décodage sont dans l'onglet <a class="back" href="direwolf.php">🐺 Direwolf</a>.</div>
     <?php endif; ?>
 
     <!-- État du système -->

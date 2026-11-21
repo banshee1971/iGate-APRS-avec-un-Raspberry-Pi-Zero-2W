@@ -3,7 +3,7 @@
   "sections": [
     {
       "id": "station",
-      "title": "📡 Station",
+      "title": "📡 Identification de la station",
       "fields": [
         {
           "key": "callsign",
@@ -17,12 +17,13 @@
         },
         {
           "key": "ssid",
-          "label": "SSID",
+          "label": "SSID (type de station)",
           "type": "int",
           "default": 10,
           "min": 0,
           "max": 15,
-          "help": "Le -10 est la convention pour un iGate. Mettez 0 pour aucun SSID."
+          "help": "Le -10 est la convention pour un iGate.",
+          "widget": "ssid"
         },
         {
           "key": "passcode",
@@ -31,9 +32,11 @@
           "default": "",
           "pattern": "^[0-9]{0,5}$",
           "placeholder": "Automatique",
-          "help": "Laissez vide : il est calculé automatiquement à partir de votre indicatif."
+          "help": "Calculé automatiquement à partir de votre indicatif (algorithme public d'APRS-IS).",
+          "widget": "passcode"
         }
-      ]
+      ],
+      "page": "reporting"
     },
     {
       "id": "position",
@@ -296,8 +299,18 @@
           "default": "m/500",
           "pattern": "^[A-Za-z0-9/ .,*-]{0,80}$",
           "help": "Filtre côté serveur (ex.: m/500 = 500 km autour de vous)."
+        },
+        {
+          "key": "aprsfi_apikey",
+          "label": "Clé API aprs.fi (optionnelle)",
+          "type": "text",
+          "default": "",
+          "pattern": "^[A-Za-z0-9.]{0,40}$",
+          "placeholder": "123456.AbCdEfGhIjKl",
+          "help": "Permet d'afficher ce qu'aprs.fi a vraiment reçu de votre iGate. Votre clé se trouve sur aprs.fi → Mon compte → API."
         }
-      ]
+      ],
+      "page": "reporting"
     },
     {
       "id": "web",
@@ -458,6 +471,19 @@
           "min": 1,
           "max": 10,
           "help": "3 = grille de 7x7 tuiles par niveau de zoom, autour de la position de l'iGate."
+        }
+      ]
+    },
+    {
+      "id": "internal",
+      "title": "Interne",
+      "page": "hidden",
+      "fields": [
+        {
+          "key": "aprsis_enabled",
+          "label": "Envoi des paquets vers APRS-IS / aprs.fi",
+          "type": "bool",
+          "default": true
         }
       ]
     }
