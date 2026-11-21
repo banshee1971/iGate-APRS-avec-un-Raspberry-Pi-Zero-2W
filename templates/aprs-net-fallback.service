@@ -1,0 +1,7 @@
+[Unit]
+Description=iGate APRS : profil réseau de secours si aucun réseau après le démarrage
+After=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/aprs-network fallback

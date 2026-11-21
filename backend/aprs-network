@@ -1,0 +1,381 @@
+#!/usr/bin/env python3
+"""
+aprs-network — profils réseau de l'iGate (page /admin -> Réseau), via NetworkManager.
+
+  aprs-network apply <id> [--no-confirm]   active un profil
+  aprs-network confirm                     garde la configuration en attente
+  aprs-network rollback                    (minuterie) revient au profil précédent
+                                           si la nouvelle configuration n'a pas été confirmée
+  aprs-network fallback                    (au démarrage) active le profil de secours
+                                           si aucun réseau n'est connecté
+  aprs-network status                      état courant (JSON)
+
+Les profils sont écrits par l'interface web dans
+/var/lib/aprs-igate/network-profiles.json et TOUJOURS revalidés ici.
+Le kit gère ses propres connexions NetworkManager (aprs-eth, aprs-wifi,
+aprs-hotspot). Les connexions créées à l'installation (Raspberry Pi Imager)
+ne sont jamais effacées : elles sont seulement désactivées puis réactivées.
+"""
+import ipaddress
+import json
+import os
+import re
+import secrets
+import subprocess
+import sys
+import time
+from datetime import datetime
+
+STATE_DIR = '/var/lib/aprs-igate'
+PROFILES = STATE_DIR + '/network-profiles.json'
+STATE = STATE_DIR + '/network-state.json'          # profil actif, connexions d'origine
+PENDING = STATE_DIR + '/network-pending.json'      # changement à confirmer
+CONFIRM = STATE_DIR + '/network-confirm'           # écrit par /admin (jeton)
+LOG = STATE_DIR + '/apply.log'
+CONFIRM_DELAY = 300                                # secondes pour confirmer
+OURS = ('aprs-eth', 'aprs-wifi', 'aprs-hotspot')
+HOTSPOT_ADDR = '10.42.0.1/24'
+
+
+def log(msg):
+    line = f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [réseau] {msg}"
+    print(line, flush=True)
+    try:
+        with open(LOG, 'a', encoding='utf-8') as f:
+            f.write(line + '\n')
+    except OSError:
+        pass
+
+
+def read_json(path, default):
+    try:
+        with open(path, encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+def write_json(path, data, mode=0o644):
+    tmp = path + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)
+    os.chmod(tmp, mode)
+    os.replace(tmp, path)
+
+
+def nm(*args, check=False):
+    """nmcli sans shell : les SSID et mots de passe ne sont jamais interprétés."""
+    shown = ['********' if i > 0 and args[i - 1] in ('wifi-sec.psk', '802-11-wireless-security.psk') else a
+             for i, a in enumerate(args)]
+    log('  $ nmcli ' + ' '.join(shown))
+    r = subprocess.run(['nmcli', *args], capture_output=True, text=True)
+    if r.returncode != 0:
+        log('    ' + (r.stderr.strip() or r.stdout.strip())[:300])
+        if check:
+            raise RuntimeError(f"nmcli {args[0]} {args[1] if len(args) > 1 else ''} a échoué")
+    return r
+
+
+# --------------------------------------------------------------- validation
+def _ip_cidr(v, field):
+    try:
+        iface = ipaddress.ip_interface(v)
+        if iface.version != 4 or '/' not in v:
+            raise ValueError
+        return str(iface)
+    except ValueError:
+        raise ValueError(f"{field} : adresse invalide (ex. 192.168.1.50/24)")
+
+
+def _ip(v, field, optional=False):
+    if optional and not v:
+        return ''
+    try:
+        return str(ipaddress.IPv4Address(v))
+    except ValueError:
+        raise ValueError(f"{field} : adresse invalide")
+
+
+def _dns(v):
+    out = []
+    for part in re.split(r'[\s,]+', (v or '').strip()):
+        if part:
+            out.append(_ip(part, 'DNS'))
+    return ' '.join(out[:3])
+
+
+def _text(v, field, minlen, maxlen):
+    v = '' if v is None else str(v)
+    if not (minlen <= len(v.encode('utf-8')) <= maxlen) or re.search(r'[\x00-\x1f\x7f]', v):
+        raise ValueError(f"{field} : {minlen} à {maxlen} caractères, sans caractères de contrôle")
+    return v
+
+
+def validate_profile(p):
+    """Retourne une copie propre du profil, ou lève ValueError."""
+    if not isinstance(p, dict) or not re.fullmatch(r'[a-z0-9-]{1,32}', str(p.get('id', ''))):
+        raise ValueError("identifiant de profil invalide")
+    out = {'id': p['id'], 'name': _text(p.get('name'), 'Nom', 1, 40), 'builtin': bool(p.get('builtin'))}
+    e = p.get('eth') or {}
+    eth = {'mode': e.get('mode', 'dhcp')}
+    if eth['mode'] == 'static':
+        eth['address'] = _ip_cidr(e.get('address', ''), 'Ethernet')
+        eth['gateway'] = _ip(e.get('gateway', ''), 'Passerelle Ethernet', optional=True)
+        eth['dns'] = _dns(e.get('dns', ''))
+    elif eth['mode'] not in ('dhcp', 'off'):
+        raise ValueError("mode Ethernet invalide")
+    out['eth'] = eth
+    w = p.get('wifi') or {}
+    wifi = {'mode': w.get('mode', 'existing')}
+    if wifi['mode'] == 'client':
+        wifi['ssid'] = _text(w.get('ssid'), 'Nom du réseau Wi-Fi', 1, 32)
+        pw = w.get('password', '')
+        wifi['password'] = '' if pw == '' else _text(pw, 'Mot de passe Wi-Fi', 8, 63)
+        wifi['ip'] = w.get('ip', 'dhcp')
+        if wifi['ip'] == 'static':
+            wifi['address'] = _ip_cidr(w.get('address', ''), 'Wi-Fi')
+            wifi['gateway'] = _ip(w.get('gateway', ''), 'Passerelle Wi-Fi', optional=True)
+            wifi['dns'] = _dns(w.get('dns', ''))
+        elif wifi['ip'] != 'dhcp':
+            raise ValueError("adressage Wi-Fi invalide")
+    elif wifi['mode'] == 'ap':
+        wifi['ssid'] = _text(w.get('ssid'), 'Nom de la borne', 1, 32)
+        wifi['password'] = _text(w.get('password'), 'Mot de passe de la borne', 8, 63)
+        ch = int(w.get('channel', 6))
+        if ch not in (1, 6, 11):
+            raise ValueError("canal : 1, 6 ou 11")
+        wifi['channel'] = ch
+    elif wifi['mode'] not in ('existing', 'off'):
+        raise ValueError("mode Wi-Fi invalide")
+    out['wifi'] = wifi
+    return out
+
+
+def load_profiles():
+    data = read_json(PROFILES, {})
+    return data.get('profiles', []), data.get('fallback', '')
+
+
+ORIGIN = {'id': 'origine', 'name': 'Origine (installation)', 'builtin': True,
+          'eth': {'mode': 'dhcp'}, 'wifi': {'mode': 'existing'}}
+
+
+def find_profile(pid):
+    for p in load_profiles()[0]:
+        if p.get('id') == pid:
+            return validate_profile(p)
+    if pid == 'origine':          # toujours disponible, même sans fichier de profils
+        return validate_profile(ORIGIN)
+    raise ValueError(f"profil introuvable : {pid}")
+
+
+# -------------------------------------------------------- NetworkManager
+def connections():
+    """[(nom, type, autoconnect)] de toutes les connexions NetworkManager."""
+    r = nm('-t', '-f', 'NAME,TYPE,AUTOCONNECT', 'connection', 'show')
+    out = []
+    for line in r.stdout.splitlines():
+        parts = re.split(r'(?<!\\):', line)
+        if len(parts) >= 3:
+            out.append((parts[0].replace('\\:', ':'), parts[1], parts[2]))
+    return out
+
+
+def ip_args(prefix, cfg):
+    # Ethernet : cfg['mode'] = dhcp|static ; Wi-Fi client : cfg['ip'] = dhcp|static
+    if cfg.get('mode') == 'static' or cfg.get('ip') == 'static':
+        args = [f'{prefix}.method', 'manual', f'{prefix}.addresses', cfg['address']]
+        if cfg.get('gateway'):
+            args += [f'{prefix}.gateway', cfg['gateway']]
+        if cfg.get('dns'):
+            args += [f'{prefix}.dns', cfg['dns']]
+        return args
+    return [f'{prefix}.method', 'auto']
+
+
+def apply_profile(p):
+    state = read_json(STATE, {})
+    conns = connections()
+    foreign_wifi = state.get('foreign_wifi')
+    if foreign_wifi is None:      # premier usage : mémoriser le Wi-Fi d'origine
+        foreign_wifi = [n for n, t, a in conns if t == '802-11-wireless' and n not in OURS and a == 'yes']
+        state['foreign_wifi'] = foreign_wifi
+    foreign_eth = [n for n, t, a in conns if t == '802-3-ethernet' and n not in OURS]
+
+    for name in OURS:
+        if any(n == name for n, _, _ in conns):
+            nm('connection', 'delete', name)
+
+    # ---- Ethernet (n'importe quelle carte : intégrée ou adaptateur USB)
+    eth = p['eth']
+    if eth['mode'] != 'off':
+        args = ['connection', 'add', 'type', 'ethernet', 'con-name', 'aprs-eth',
+                'connection.autoconnect', 'yes', 'connection.autoconnect-priority', '100'] + ip_args('ipv4', eth)
+        if nm(*args).returncode != 0:
+            nm(*(args[:4] + ['ifname', '*'] + args[4:]), check=True)
+        for n in foreign_eth:
+            nm('connection', 'modify', n, 'connection.autoconnect', 'no')
+    else:
+        for n in foreign_eth:
+            nm('connection', 'modify', n, 'connection.autoconnect', 'no')
+            nm('connection', 'down', n)
+
+    # ---- Wi-Fi
+    w = p['wifi']
+    if w['mode'] == 'off':
+        nm('radio', 'wifi', 'off')
+    else:
+        nm('radio', 'wifi', 'on')
+    if w['mode'] == 'existing':
+        for n in foreign_wifi:
+            nm('connection', 'modify', n, 'connection.autoconnect', 'yes')
+    else:
+        for n in foreign_wifi:
+            nm('connection', 'modify', n, 'connection.autoconnect', 'no')
+            nm('connection', 'down', n)
+    if w['mode'] == 'client':
+        args = ['connection', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', 'aprs-wifi',
+                'ssid', w['ssid'], 'connection.autoconnect', 'yes', 'connection.autoconnect-priority', '100']
+        if w['password']:
+            args += ['wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', w['password']]
+        nm(*(args + ip_args('ipv4', w)), check=True)
+    elif w['mode'] == 'ap':
+        nm('connection', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', 'aprs-hotspot',
+           'ssid', w['ssid'], 'connection.autoconnect', 'yes', 'connection.autoconnect-priority', '100',
+           '802-11-wireless.mode', 'ap', '802-11-wireless.band', 'bg', '802-11-wireless.channel', str(w['channel']),
+           '802-11-wireless.powersave', '2',
+           'ipv4.method', 'shared', 'ipv4.addresses', HOTSPOT_ADDR, 'ipv6.method', 'disabled',
+           'wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', w['password'],
+           'wifi-sec.proto', 'rsn', 'wifi-sec.pairwise', 'ccmp', 'wifi-sec.group', 'ccmp', check=True)
+
+    # ---- Activation
+    if eth['mode'] != 'off':
+        nm('connection', 'up', 'aprs-eth')
+    if w['mode'] == 'existing':
+        for n in foreign_wifi:
+            if nm('connection', 'up', n).returncode == 0:
+                break
+    elif w['mode'] == 'client':
+        nm('connection', 'up', 'aprs-wifi')
+    elif w['mode'] == 'ap':
+        nm('connection', 'up', 'aprs-hotspot')
+
+    state['active'] = p['id']
+    state['applied'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    write_json(STATE, state)
+    log(f"✓ Profil « {p['name']} » activé")
+
+
+def stop_rollback_timer():
+    subprocess.run(['systemctl', 'stop', 'aprs-net-rollback.timer', 'aprs-net-rollback.service'],
+                   capture_output=True)
+    subprocess.run(['systemctl', 'reset-failed', 'aprs-net-rollback.timer', 'aprs-net-rollback.service'],
+                   capture_output=True)
+
+
+# ----------------------------------------------------------------- actions
+def cmd_apply(pid, confirm=True):
+    p = find_profile(pid)
+    previous = read_json(STATE, {}).get('active') or 'origine'
+    stop_rollback_timer()
+    try:
+        os.remove(CONFIRM)
+    except OSError:
+        pass
+    apply_profile(p)
+    if confirm and previous != pid:
+        token = secrets.token_hex(8)
+        write_json(PENDING, {'token': token, 'previous': previous, 'new': pid,
+                             'deadline': int(time.time()) + CONFIRM_DELAY})
+        subprocess.run(['systemd-run', '--unit', 'aprs-net-rollback', f'--on-active={CONFIRM_DELAY}',
+                        '--timer-property=AccuracySec=5s', '/usr/local/sbin/aprs-network', 'rollback'],
+                       capture_output=True)
+        return f"Profil « {p['name']} » activé : confirmez dans les {CONFIRM_DELAY // 60} minutes, sinon retour automatique."
+    try:
+        os.remove(PENDING)
+    except OSError:
+        pass
+    return f"Profil « {p['name']} » activé."
+
+
+def cmd_confirm():
+    stop_rollback_timer()
+    for f in (PENDING, CONFIRM):
+        try:
+            os.remove(f)
+        except OSError:
+            pass
+    log("✓ Nouvelle configuration réseau confirmée")
+    return "Configuration réseau confirmée."
+
+
+def cmd_rollback():
+    pending = read_json(PENDING, None)
+    if not pending:
+        return "Rien à annuler."
+    try:
+        with open(CONFIRM, encoding='utf-8') as f:
+            confirmed = f.read().strip() == pending['token']
+    except OSError:
+        confirmed = False
+    if confirmed:
+        return cmd_confirm()
+    log(f"⚠️ Configuration non confirmée : retour au profil « {pending['previous']} »")
+    apply_profile(find_profile(pending['previous']))
+    os.remove(PENDING)
+    return "Configuration réseau non confirmée : retour au profil précédent."
+
+
+def connected():
+    r = nm('-t', '-f', 'TYPE,STATE', 'device')
+    return any(re.match(r'^(ethernet|wifi):connected', l) for l in r.stdout.splitlines())
+
+
+def cmd_fallback():
+    _, fallback = load_profiles()
+    if not fallback:
+        return "Pas de profil de secours."
+    if connected():
+        return "Réseau connecté : profil de secours inutile."
+    state = read_json(STATE, {})
+    log("⚠️ Aucun réseau connecté après le démarrage : activation du profil de secours")
+    state['before_fallback'] = state.get('active')
+    write_json(STATE, state)
+    apply_profile(find_profile(fallback))
+    return "Profil de secours activé."
+
+
+def main():
+    if len(sys.argv) < 2:
+        raise SystemExit(__doc__)
+    cmd = sys.argv[1]
+    if cmd == 'status':
+        print(json.dumps({'state': read_json(STATE, {}), 'pending': read_json(PENDING, None)}, ensure_ascii=False))
+        return
+    if os.geteuid() != 0:
+        raise SystemExit("À lancer en root.")
+    try:
+        if cmd == 'apply' and len(sys.argv) >= 3:
+            msg = cmd_apply(sys.argv[2], confirm='--no-confirm' not in sys.argv)
+        elif cmd == 'confirm':
+            msg = cmd_confirm()
+        elif cmd == 'rollback':
+            msg = cmd_rollback()
+        elif cmd == 'fallback':
+            msg = cmd_fallback()
+        else:
+            raise SystemExit(__doc__)
+    except FileNotFoundError:
+        msg = "NetworkManager (nmcli) introuvable : la gestion du réseau demande Raspberry Pi OS Bookworm ou plus récent."
+        log('✗ ' + msg)
+        print(msg)
+        sys.exit(1)
+    except (ValueError, RuntimeError) as e:
+        log('✗ ' + str(e))
+        print(str(e))
+        sys.exit(1)
+    print(msg)
+
+
+if __name__ == '__main__':
+    main()

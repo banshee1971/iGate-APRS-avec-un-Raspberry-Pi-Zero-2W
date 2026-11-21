@@ -37,7 +37,8 @@ STATUS = STATE + '/status.json'
 LOG = STATE + '/apply.log'
 BOOT_CONFIG = '/boot/firmware/config.txt'
 
-ACTIONS = ('apply', 'restart', 'backup', 'usb-backup', 'tiles', 'clear-tiles', 'gain-test', 'reboot')
+ACTIONS = ('apply', 'restart', 'backup', 'usb-backup', 'tiles', 'clear-tiles', 'gain-test', 'reboot',
+           'network', 'network-confirm')
 TILE_DIR = '/var/www/aprs/tiles'
 GAIN_RESULTS = STATE + '/gain-test.txt'
 # Caractères jamais acceptés dans une valeur (protection des fichiers générés)
@@ -324,7 +325,26 @@ def action_tiles(env):
 def action_gain_test(env):
     script = os.path.join(env['IGATE_HOME'], 'test-direwolf-gain.sh')
     r = run([script], env={**os.environ, 'GAIN_RESULTS': GAIN_RESULTS})
-    return r.returncode == 0, 'Test de gain terminé : voir les résultats dans la page Direwolf.'         if r.returncode == 0 else 'Échec du test de gain (dongle branché ?).'
+    if r.returncode == 0:
+        return True, 'Test de gain terminé : voir les résultats dans la page Direwolf.'
+    return False, 'Échec du test de gain (dongle branché ?).'
+
+
+def action_network(env, payload=''):
+    """Active un profil réseau (payload : « <id> » ou « <id> --no-confirm »)."""
+    parts = payload.split()
+    if not parts or not re.fullmatch(r'[a-z0-9-]{1,32}', parts[0]):
+        return False, 'Profil réseau invalide.'
+    cmd = ['/usr/local/sbin/aprs-network', 'apply', parts[0]]
+    if '--no-confirm' in parts[1:]:
+        cmd.append('--no-confirm')
+    r = run(cmd, capture_output=True, text=True)
+    return r.returncode == 0, (r.stdout.strip().splitlines() or ['?'])[-1]
+
+
+def action_network_confirm(env, payload=''):
+    r = run(['/usr/local/sbin/aprs-network', 'confirm'], capture_output=True, text=True)
+    return r.returncode == 0, (r.stdout.strip().splitlines() or ['?'])[-1]
 
 
 def action_clear_tiles(env):
@@ -346,13 +366,15 @@ HANDLERS = {
     'apply': action_apply, 'restart': action_restart, 'backup': action_backup,
     'usb-backup': action_usb_backup, 'tiles': action_tiles,
     'clear-tiles': action_clear_tiles, 'gain-test': action_gain_test, 'reboot': action_reboot,
+    'network': action_network, 'network-confirm': action_network_confirm,
 }
+PAYLOAD_ACTIONS = ('network',)   # actions qui reçoivent un paramètre (contenu du fichier de demande)
 
 
-def do(action, env):
-    log(f"=== Action : {action}")
+def do(action, env, payload=''):
+    log(f"=== Action : {action}" + (f" ({payload})" if payload else ''))
     try:
-        ok, msg = HANDLERS[action](env)
+        ok, msg = HANDLERS[action](env, payload) if action in PAYLOAD_ACTIONS else HANDLERS[action](env)
     except Exception as e:  # on veut toujours un statut lisible dans /admin
         ok, msg = False, f"Erreur : {e}"
     log(('✓ ' if ok else '✗ ') + msg)
@@ -366,6 +388,8 @@ def process_queue(env):
     for name in sorted(os.listdir(QUEUE)):
         path = os.path.join(QUEUE, name)
         try:
+            with open(path, encoding='utf-8', errors='replace') as f:
+                payload = f.read(200).strip()
             os.remove(path)          # retirer d'abord : pas de boucle infinie
         except OSError:
             continue
@@ -373,7 +397,7 @@ def process_queue(env):
         if action not in ACTIONS:
             log(f"Demande ignorée (inconnue) : {name}")
             continue
-        ok = do(action, env) and ok
+        ok = do(action, env, payload if action in PAYLOAD_ACTIONS else '') and ok
     return ok
 
 

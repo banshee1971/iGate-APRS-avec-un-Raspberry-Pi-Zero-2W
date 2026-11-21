@@ -10,7 +10,7 @@ const APRS_STATUS_FILE   = APRS_STATE_DIR . '/status.json';
 const APRS_LOG_FILE      = APRS_STATE_DIR . '/apply.log';
 const APRS_DB_PATH       = '/var/www/aprs/packets.db';
 const APRS_UNCONFIGURED  = 'N0CALL';
-const APRS_ACTIONS       = ['apply', 'restart', 'backup', 'usb-backup', 'tiles', 'clear-tiles', 'gain-test', 'reboot'];
+const APRS_ACTIONS       = ['apply', 'restart', 'backup', 'usb-backup', 'tiles', 'clear-tiles', 'gain-test', 'reboot', 'network', 'network-confirm'];
 const APRS_TILE_DIR      = '/var/www/aprs/tiles';
 const APRS_AUTH_FILE     = APRS_STATE_DIR . '/admin-auth.json';
 const APRS_GAIN_RESULTS  = APRS_STATE_DIR . '/gain-test.txt';
@@ -109,12 +109,14 @@ function aprs_save_settings(array $settings) {
 }
 
 /** Dépose une demande pour le service root aprs-admin (voir aprs-admin.path). */
-function aprs_queue_action($action) {
-    if (!in_array($action, APRS_ACTIONS, true)) {
+function aprs_queue_action($action, $payload = '') {
+    if (!in_array($action, APRS_ACTIONS, true) || !preg_match('/^[a-z0-9 -]{0,60}$/', $payload)) {
         return false;
     }
     $name = sprintf('%s-%s', str_replace('.', '', sprintf('%.6f', microtime(true))), $action);
-    return file_put_contents(APRS_QUEUE_DIR . '/' . $name, '') !== false;
+    // Écrire puis renommer : root ne doit jamais lire une demande à moitié écrite
+    $tmp = APRS_STATE_DIR . '/.' . $name . '.tmp';
+    return file_put_contents($tmp, $payload) !== false && rename($tmp, APRS_QUEUE_DIR . '/' . $name);
 }
 
 function aprs_status() {

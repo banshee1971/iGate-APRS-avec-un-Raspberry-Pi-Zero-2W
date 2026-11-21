@@ -1,0 +1,9 @@
+[Unit]
+Description=iGate APRS : vérifier le réseau 3 minutes après le démarrage
+
+[Timer]
+OnBootSec=3min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

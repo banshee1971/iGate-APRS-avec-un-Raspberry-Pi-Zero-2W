@@ -8,6 +8,7 @@ const APRS_ADMIN_TABS = [
     'config'   => ['./',             '⚙️ Configuration'],
     'reporting'=> ['reporting.php',  '📡 Reporting aprs.fi'],
     'direwolf' => ['direwolf.php',   '🐺 Direwolf'],
+    'network'  => ['network.php',    '🌐 Réseau'],
     'system'   => ['system.php',     '📊 Système'],
     'account'  => ['account.php',    '👤 Compte'],
 ];
@@ -23,7 +24,7 @@ function aprs_admin_header($title, $active, array $opts = []) {
     <?php if (!empty($opts['refresh'])): ?><meta http-equiv="refresh" content="<?php echo intval($opts['refresh']); ?>"><?php endif; ?>
     <title><?php echo h($title); ?> - <?php echo h(aprs_title($s)); ?></title>
     <?php if (!empty($opts['leaflet'])) echo aprs_leaflet_tags(); ?>
-    <link rel="stylesheet" href="/admin/admin.css?v=4">
+    <link rel="stylesheet" href="/admin/admin.css?v=5">
 </head>
 <body class="<?php echo h($opts['body_class'] ?? ''); ?>">
 <div class="container">

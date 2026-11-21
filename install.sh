@@ -117,7 +117,7 @@ apt-get install -y \
     git cmake build-essential libasound2-dev libudev-dev libhamlib-dev libgps-dev \
     rtl-sdr sox alsa-utils usbutils \
     nginx php-fpm php-cli php-sqlite3 sqlite3 python3 \
-    gettext-base curl rsync
+    gettext-base curl rsync dnsmasq-base
 ok "Paquets installés"
 
 # ---------------------------------------------------------------------
@@ -183,6 +183,7 @@ install -m 644 "$KIT_DIR/web/lib/settings.schema.json" /usr/local/share/aprs-iga
 install -m 755 "$KIT_DIR/backend/aprs-apply-config" /usr/local/sbin/aprs-apply-config
 install -m 755 "$KIT_DIR/backend/aprs-admin-passwd" /usr/local/sbin/aprs-admin-passwd
 install -m 755 "$KIT_DIR/backend/aprs-audio-tap" /usr/local/bin/aprs-audio-tap
+install -m 755 "$KIT_DIR/backend/aprs-network" /usr/local/sbin/aprs-network
 
 # État partagé avec l'interface web (www-data y écrit les réglages et demandes)
 install -d -o root -g www-data -m 2775 /var/lib/aprs-igate
@@ -203,11 +204,14 @@ case "$ADMIN_MODE" in
 esac
 unset ADMIN_PASSWORD
 
-install -m 644 "$KIT_DIR/templates/aprs-admin.path" "$KIT_DIR/templates/aprs-admin.service" /etc/systemd/system/
+install -m 644 "$KIT_DIR/templates/aprs-admin.path" "$KIT_DIR/templates/aprs-admin.service" \
+    "$KIT_DIR/templates/aprs-net-fallback.service" "$KIT_DIR/templates/aprs-net-fallback.timer" /etc/systemd/system/
 install -m 644 "$KIT_DIR/templates/99-rtlsdr-restart.rules" /etc/udev/rules.d/
 udevadm control --reload-rules
 systemctl daemon-reload
 systemctl enable --now aprs-admin.path
+# Profil réseau de secours (page /admin -> Réseau), vérifié 3 min après le démarrage
+systemctl enable aprs-net-fallback.timer
 ok "aprs-apply-config installé, aprs-admin.path actif"
 
 # ---------------------------------------------------------------------

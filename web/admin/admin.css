@@ -164,3 +164,12 @@ input.readonly-code { background: #f3f0ff; font-family: Consolas, monospace; fon
 .vu-bar { height: 14px; background: #eceff1; border-radius: 7px; overflow: hidden; margin-top: 6px; }
 .vu-bar i { display: block; height: 100%; width: 0; background: #667eea; transition: width .3s; }
 .vu-hist { width: 100%; height: 50px; display: block; margin-top: 15px; background: #f8f9fa; border-radius: 5px; }
+
+/* Page Réseau */
+.net-profiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.net-profile { border: 2px solid #e0e0e0; border-radius: 8px; padding: 12px 15px; background: #fafafa; }
+.net-profile.active { border-color: #43a047; background: #f1f8e9; }
+.net-head { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.net-h3 { margin: 20px 0 10px; font-size: 1.05em; color: #4b3f9e; }
+.net-sub { margin-top: 12px; }
+.net-pending { display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap; }

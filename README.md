@@ -67,7 +67,7 @@ Mot de passe oublié ? En SSH : `sudo aprs-admin-passwd`. On peut aussi le chang
 ## 3. Configurer dans le navigateur
 
 Ouvrez **`http://aprs-igate/admin`** (ou `http://<adresse-ip-du-pi>/admin`) et connectez-vous.
-La page a cinq onglets (plus un lien 🔋 PiSugar si celui-ci est installé).
+La page a six onglets (plus un lien 🔋 PiSugar si celui-ci est installé).
 
 ### ⚙️ Configuration
 
@@ -121,6 +121,29 @@ Tout ce qui sert à **mieux capter** :
   filtre DC, bias-tee (préampli), profil du démodulateur (A, A+, B, B+), FIX_BITS ;
 - **test des gains** : un bouton teste 0, 20, 35, 40, 45 et 49 (environ 6 minutes) et
   un bouton « Utiliser » applique le meilleur.
+
+### 🌐 Réseau
+
+Des **profils réseau** enregistrés, à activer d'un clic :
+
+- **Ethernet** (carte intégrée ou adaptateur USB) : DHCP (par défaut), adresse fixe ou désactivé ;
+- **Wi-Fi** : le réseau entré dans Raspberry Pi Imager, un autre réseau (DHCP ou adresse
+  fixe), une **borne Wi-Fi** (le Pi crée son propre réseau, adresse `http://10.42.0.1`),
+  ou désactivé.
+
+Le profil **« Origine »** remet tout comme à l'installation. Exemple pour aller au club :
+créez un profil « Club » en borne Wi-Fi, activez-le avant de partir, connectez votre
+téléphone à la borne et ouvrez `http://10.42.0.1/admin`. De retour à la maison, réactivez
+« Origine ».
+
+**Filet de sécurité** : après chaque changement, cliquez sur « Garder cette configuration »
+depuis le nouveau réseau dans les 5 minutes, sinon le Pi revient tout seul au profil
+précédent. Un **profil de secours** (par exemple la borne Wi-Fi) peut aussi s'activer
+automatiquement si le Pi n'a aucun réseau 3 minutes après le démarrage.
+
+> Nécessite NetworkManager (Raspberry Pi OS Bookworm ou plus récent). En borne Wi-Fi
+> sans câble Ethernet, l'iGate continue de recevoir et d'afficher les paquets localement,
+> mais ne peut pas les envoyer à aprs.fi (pas d'Internet).
 
 ### 📊 Système
 

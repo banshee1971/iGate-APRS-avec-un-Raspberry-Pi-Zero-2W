@@ -55,6 +55,10 @@ if [ -f "$BACKUP_DIR/settings.json" ]; then
         echo "✓ Restauration du compte /admin..."
         install -o www-data -g www-data -m 600 "$BACKUP_DIR/admin-auth.json" /var/lib/aprs-igate/admin-auth.json
     fi
+    if [ -f "$BACKUP_DIR/network-profiles.json" ]; then
+        echo "✓ Restauration des profils réseau (non activés : choisissez-en un dans /admin -> Réseau)..."
+        install -o www-data -g www-data -m 600 "$BACKUP_DIR/network-profiles.json" /var/lib/aprs-igate/network-profiles.json
+    fi
 else
     # Ancien backup (fait avec le guide manuel) : on reprend direwolf.conf tel quel
     echo "⚠️  Backup sans settings.json (ancien format) : restauration de direwolf.conf seulement."
