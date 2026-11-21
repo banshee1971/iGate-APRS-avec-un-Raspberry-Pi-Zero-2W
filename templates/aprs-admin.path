@@ -1,0 +1,8 @@
+[Unit]
+Description=Surveille les demandes de l'interface /admin de l'iGate APRS
+
+[Path]
+DirectoryNotEmpty=/var/lib/aprs-igate/queue
+
+[Install]
+WantedBy=multi-user.target

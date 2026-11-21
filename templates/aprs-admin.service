@@ -1,0 +1,8 @@
+[Unit]
+Description=Applique les réglages de l'interface /admin de l'iGate APRS
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/aprs-apply-config --queue
+# Le téléchargement des tuiles peut prendre plusieurs minutes
+TimeoutStartSec=infinity

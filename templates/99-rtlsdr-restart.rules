@@ -1,0 +1,2 @@
+# Redémarrer aprs-igate quand le RTL-SDR (0bda:2838) se reconnecte
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2838", RUN+="/bin/systemctl restart aprs-igate.service"

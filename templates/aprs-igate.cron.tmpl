@@ -1,0 +1,15 @@
+# Tâches planifiées de l'iGate APRS - généré par install.sh
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Watchdog : vérifie le RTL-SDR et les services toutes les 5 minutes
+*/5 * * * * root ${IGATE_HOME}/watchdog-aprs.sh
+
+# Nettoyage des paquets de plus de ${RETENTION_DAYS} jours, chaque jour à 3h
+0 3 * * * ${IGATE_USER} sqlite3 /var/www/aprs/packets.db "DELETE FROM packets WHERE timestamp < datetime('now', '-${RETENTION_DAYS} days');"
+
+# Entretien du cache des tuiles de carte (taille max, âge max), chaque nuit à 4h
+30 4 * * * root ${IGATE_HOME}/clean-tile-cache.sh >> /var/lib/aprs-igate/apply.log 2>&1
+
+# Sauvegarde de la configuration (${BACKUP_SCHEDULE})
+${BACKUP_CRON} root ${IGATE_HOME}/backup-aprs-config.sh >> ${IGATE_HOME}/backups/backup.log 2>&1

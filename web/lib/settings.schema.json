@@ -1,0 +1,284 @@
+{
+  "version": 1,
+  "sections": [
+    {
+      "id": "station",
+      "title": "📡 Station",
+      "fields": [
+        {
+          "key": "callsign",
+          "label": "Indicatif d'appel (sans SSID)",
+          "type": "text",
+          "default": "N0CALL",
+          "upper": true,
+          "pattern": "^[A-Z0-9]{3,7}$",
+          "placeholder": "VE2ABC",
+          "help": "Votre indicatif, sans le -10. Tant qu'il vaut N0CALL, l'iGate ne se connecte pas à APRS-IS."
+        },
+        {
+          "key": "ssid",
+          "label": "SSID",
+          "type": "int",
+          "default": 10,
+          "min": 0,
+          "max": 15,
+          "help": "Le -10 est la convention pour un iGate. Mettez 0 pour aucun SSID."
+        },
+        {
+          "key": "passcode",
+          "label": "Passcode APRS-IS",
+          "type": "text",
+          "default": "",
+          "pattern": "^[0-9]{0,5}$",
+          "placeholder": "Automatique",
+          "help": "Laissez vide : il est calculé automatiquement à partir de votre indicatif."
+        }
+      ]
+    },
+    {
+      "id": "position",
+      "title": "📍 Position et balise",
+      "fields": [
+        {
+          "key": "lat",
+          "label": "Latitude",
+          "type": "float",
+          "default": 45.5017,
+          "min": -90,
+          "max": 90,
+          "decimals": 4,
+          "help": "Degrés décimaux, 4 décimales maximum. Cliquez sur la carte pour la remplir."
+        },
+        {
+          "key": "lon",
+          "label": "Longitude",
+          "type": "float",
+          "default": -73.5673,
+          "min": -180,
+          "max": 180,
+          "decimals": 4,
+          "help": "Négatif = Ouest (Amérique du Nord)."
+        },
+        {
+          "key": "beacon",
+          "label": "Annoncer la position de l'iGate sur APRS-IS",
+          "type": "bool",
+          "default": true
+        },
+        {
+          "key": "beacon_every",
+          "label": "Intervalle des balises (minutes)",
+          "type": "int",
+          "default": 30,
+          "min": 10,
+          "max": 120
+        },
+        {
+          "key": "beacon_comment",
+          "label": "Commentaire de la balise",
+          "type": "text",
+          "default": "RX iGate - 144.39MHz RTL-SDR",
+          "pattern": "^[A-Za-z0-9À-ÿ .,:()/+#@!?_-]{0,60}$",
+          "help": "Affiché sur aprs.fi. 60 caractères maximum, sans guillemets."
+        }
+      ]
+    },
+    {
+      "id": "radio",
+      "title": "📻 Radio (RTL-SDR)",
+      "fields": [
+        {
+          "key": "freq",
+          "label": "Fréquence APRS",
+          "type": "choice",
+          "default": "144.39M",
+          "choices": [
+            { "value": "144.39M", "label": "144.390 MHz (Amérique du Nord)" },
+            { "value": "144.80M", "label": "144.800 MHz (Europe, Afrique)" },
+            { "value": "144.575M", "label": "144.575 MHz (Nouvelle-Zélande)" },
+            { "value": "145.175M", "label": "145.175 MHz (Australie)" }
+          ]
+        },
+        {
+          "key": "gain",
+          "label": "Gain du RTL-SDR",
+          "type": "float",
+          "default": 49,
+          "min": 0,
+          "max": 49.6,
+          "decimals": 1,
+          "help": "20-30 : zone urbaine, signaux forts · 35-40 : usage général · 45-49 : zone rurale, signaux faibles."
+        },
+        {
+          "key": "ppm",
+          "label": "Correction de fréquence (ppm)",
+          "type": "int",
+          "default": 0,
+          "min": -100,
+          "max": 100,
+          "help": "0 pour un dongle avec TCXO (RTL-SDR V3, V4)."
+        }
+      ]
+    },
+    {
+      "id": "aprsis",
+      "title": "🌐 Serveur APRS-IS",
+      "fields": [
+        {
+          "key": "igserver",
+          "label": "Serveur",
+          "type": "choice",
+          "default": "noam.aprs2.net",
+          "choices": [
+            { "value": "noam.aprs2.net", "label": "noam.aprs2.net (Amérique du Nord)" },
+            { "value": "euro.aprs2.net", "label": "euro.aprs2.net (Europe)" },
+            { "value": "soam.aprs2.net", "label": "soam.aprs2.net (Amérique du Sud)" },
+            { "value": "asia.aprs2.net", "label": "asia.aprs2.net (Asie)" },
+            { "value": "aunz.aprs2.net", "label": "aunz.aprs2.net (Australie, N.-Z.)" },
+            { "value": "rotate.aprs2.net", "label": "rotate.aprs2.net (mondial)" }
+          ]
+        },
+        {
+          "key": "igfilter",
+          "label": "Filtre APRS-IS",
+          "type": "text",
+          "default": "m/500",
+          "pattern": "^[A-Za-z0-9/ .,*-]{0,80}$",
+          "help": "Filtre côté serveur (ex.: m/500 = 500 km autour de vous)."
+        }
+      ]
+    },
+    {
+      "id": "web",
+      "title": "🖥️ Affichage de la page web",
+      "fields": [
+        {
+          "key": "web_title",
+          "label": "Titre de la page",
+          "type": "text",
+          "default": "",
+          "pattern": "^[^<>\"'`$\\\\]{0,60}$",
+          "placeholder": "APRS iGate <votre indicatif>",
+          "help": "Vide = « APRS iGate » suivi de votre indicatif."
+        },
+        {
+          "key": "web_subtitle",
+          "label": "Sous-titre",
+          "type": "text",
+          "default": "Interface de visualisation des paquets APRS - 144.39 MHz",
+          "pattern": "^[^<>\"'`$\\\\]{0,100}$"
+        },
+        {
+          "key": "map_default_hours",
+          "label": "Période affichée par défaut sur la carte",
+          "type": "choice",
+          "default": "24",
+          "choices": [
+            { "value": "1", "label": "Dernière heure" },
+            { "value": "6", "label": "6 dernières heures" },
+            { "value": "12", "label": "12 dernières heures" },
+            { "value": "24", "label": "24 dernières heures" },
+            { "value": "48", "label": "48 dernières heures" },
+            { "value": "168", "label": "7 derniers jours" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "data",
+      "title": "💾 Données et sauvegardes",
+      "fields": [
+        {
+          "key": "retention_days",
+          "label": "Conserver les paquets pendant (jours)",
+          "type": "int",
+          "default": 30,
+          "min": 1,
+          "max": 365
+        },
+        {
+          "key": "backup_schedule",
+          "label": "Sauvegarde automatique de la configuration",
+          "type": "choice",
+          "default": "monthly",
+          "choices": [
+            { "value": "monthly", "label": "Mensuelle (le 1er à 2h)" },
+            { "value": "biweekly", "label": "Aux 15 jours (le 1er et le 15 à 1h)" },
+            { "value": "weekly", "label": "Hebdomadaire (dimanche à 3h)" },
+            { "value": "none", "label": "Désactivée" }
+          ]
+        },
+        {
+          "key": "backup_retention_days",
+          "label": "Conserver les sauvegardes pendant (jours)",
+          "type": "int",
+          "default": 90,
+          "min": 7,
+          "max": 730
+        },
+        {
+          "key": "usb_backup_mount",
+          "label": "Dossier de la clé USB de sauvegarde",
+          "type": "text",
+          "default": "/media/pi/USB_BACKUP",
+          "pattern": "^/(media|mnt)/[A-Za-z0-9_./-]{1,80}$",
+          "help": "Utilisé par le bouton « Copier les sauvegardes sur clé USB »."
+        }
+      ]
+    },
+    {
+      "id": "hardware",
+      "title": "🔌 Matériel",
+      "fields": [
+        {
+          "key": "usb_hub",
+          "label": "Le RTL-SDR passe par un hub USB alimenté par le Pi",
+          "type": "bool",
+          "default": false,
+          "help": "Ajoute max_usb_current=1 dans /boot/firmware/config.txt. Un redémarrage est nécessaire."
+        }
+      ]
+    },
+    {
+      "id": "tiles",
+      "title": "🗺️ Carte et cache des tuiles",
+      "fields": [
+        {
+          "key": "tile_cache_max_mb",
+          "label": "Taille maximale du cache de tuiles (Mo)",
+          "type": "int",
+          "default": 1000,
+          "min": 50,
+          "max": 20000,
+          "help": "Les tuiles vues sur la carte sont gardées sur le Pi. Au-delà de cette taille, les plus anciennes sont effacées (chaque nuit)."
+        },
+        {
+          "key": "tile_max_age_days",
+          "label": "Rafraîchir les tuiles plus vieilles que (jours)",
+          "type": "int",
+          "default": 365,
+          "min": 0,
+          "max": 3650,
+          "help": "Une tuile plus vieille est effacée pour être retéléchargée à jour. 0 = garder pour toujours (recommandé si le Pi est souvent sans Internet)."
+        },
+        {
+          "key": "tile_zooms",
+          "label": "Niveaux de zoom des tuiles hors ligne",
+          "type": "text",
+          "default": "8 9 10 11 12",
+          "pattern": "^([0-9]{1,2} ?){1,8}$",
+          "help": "Pour le bouton « Pré-télécharger les tuiles » (8 = régional, 12 = détaillé)."
+        },
+        {
+          "key": "tile_radius",
+          "label": "Rayon des tuiles hors ligne (en tuiles)",
+          "type": "int",
+          "default": 3,
+          "min": 1,
+          "max": 10,
+          "help": "3 = grille de 7x7 tuiles par niveau de zoom, autour de la position de l'iGate."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,372 @@
+#!/usr/bin/env python3
+"""
+aprs-apply-config — applique les réglages faits dans l'interface web /admin.
+
+La page /admin (qui tourne sous l'utilisateur www-data, sans droits root)
+écrit les réglages dans /var/lib/aprs-igate/settings.json, puis dépose une
+« demande » dans /var/lib/aprs-igate/queue/. L'unité systemd aprs-admin.path
+détecte la demande et lance ce script en root, qui :
+  - revalide TOUS les réglages (on ne fait jamais confiance au web),
+  - régénère direwolf.conf, les services systemd et le cron,
+  - redémarre ce qui doit l'être.
+
+Usage :
+  aprs-apply-config               applique les réglages (= action "apply")
+  aprs-apply-config --queue       traite les demandes en attente (systemd)
+  aprs-apply-config <action>      apply | restart | backup | usb-backup | tiles | clear-tiles | reboot
+  aprs-apply-config get <clé>     affiche un réglage (ex.: get lat, get station)
+"""
+import json
+import os
+import pwd
+import re
+import shutil
+import subprocess
+import sys
+from datetime import datetime
+from string import Template
+
+SHARE = '/usr/local/share/aprs-igate'
+SCHEMA = SHARE + '/settings.schema.json'       # copie root, fait foi
+TEMPLATES = SHARE + '/templates'
+INSTALL_ENV = '/etc/aprs-igate/install.env'    # écrit par install.sh
+STATE = '/var/lib/aprs-igate'
+SETTINGS = STATE + '/settings.json'
+QUEUE = STATE + '/queue'
+STATUS = STATE + '/status.json'
+LOG = STATE + '/apply.log'
+BOOT_CONFIG = '/boot/firmware/config.txt'
+
+ACTIONS = ('apply', 'restart', 'backup', 'usb-backup', 'tiles', 'clear-tiles', 'reboot')
+TILE_DIR = '/var/www/aprs/tiles'
+# Caractères jamais acceptés dans une valeur (protection des fichiers générés)
+UNSAFE = re.compile(r'[\x00-\x1f"\'`$\\;|&<>]')
+UNCONFIGURED_CALL = 'N0CALL'
+
+BACKUP_CRON = {
+    'monthly': '0 2 1 * *',
+    'biweekly': '0 1 1,15 * *',
+    'weekly': '0 3 * * 0',
+}
+
+
+# ---------------------------------------------------------------- utilitaires
+def log(msg):
+    line = f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}"
+    print(line, flush=True)
+    try:
+        with open(LOG, 'a', encoding='utf-8') as f:
+            f.write(line + '\n')
+    except OSError:
+        pass
+
+
+def run(cmd, check=False, **kw):
+    log('  $ ' + ' '.join(cmd))
+    return subprocess.run(cmd, check=check, **kw)
+
+
+def write_status(action, ok, message):
+    data = {'action': action, 'ok': ok, 'message': message,
+            'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    tmp = STATUS + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, STATUS)
+
+
+def read_install_env():
+    env = {'IGATE_USER': 'pi'}
+    if os.path.exists(INSTALL_ENV):
+        with open(INSTALL_ENV, encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    k, v = line.split('=', 1)
+                    env[k.strip()] = v.strip().strip('"')
+    user = env['IGATE_USER']
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', user):
+        raise SystemExit(f"IGATE_USER invalide dans {INSTALL_ENV}")
+    pw = pwd.getpwnam(user)
+    env['IGATE_HOME'] = pw.pw_dir
+    env['UID'], env['GID'] = pw.pw_uid, pw.pw_gid
+    return env
+
+
+# ------------------------------------------------------------------ réglages
+def schema_fields():
+    with open(SCHEMA, encoding='utf-8') as f:
+        schema = json.load(f)
+    return [fld for sec in schema['sections'] for fld in sec['fields']]
+
+
+def validate(raw):
+    """Retourne (réglages propres, liste d'erreurs). Même logique que lib/settings.php."""
+    clean, errors = {}, []
+    for fld in schema_fields():
+        key, typ, default = fld['key'], fld['type'], fld['default']
+        val = raw.get(key, default)
+        try:
+            if typ == 'bool':
+                val = val in (True, 1, '1', 'true', 'on', 'yes')
+            elif typ == 'int':
+                val = int(val)
+                if not fld['min'] <= val <= fld['max']:
+                    raise ValueError(f"doit être entre {fld['min']} et {fld['max']}")
+            elif typ == 'float':
+                val = round(float(val), fld.get('decimals', 4))
+                if not fld['min'] <= val <= fld['max']:
+                    raise ValueError(f"doit être entre {fld['min']} et {fld['max']}")
+            elif typ == 'choice':
+                val = str(val)
+                if val not in [c['value'] for c in fld['choices']]:
+                    raise ValueError("choix invalide")
+            else:  # text
+                val = str(val).strip()
+                if fld.get('upper'):
+                    val = val.upper()
+                if not re.fullmatch(fld['pattern'], val):
+                    raise ValueError("format invalide")
+                if UNSAFE.search(val):
+                    raise ValueError("caractère interdit")
+        except (TypeError, ValueError) as e:
+            errors.append(f"{fld['label']} : {e}")
+            val = default
+        clean[key] = val
+    return clean, errors
+
+
+def load_settings():
+    raw = {}
+    if os.path.exists(SETTINGS):
+        with open(SETTINGS, encoding='utf-8') as f:
+            raw = json.load(f)
+    return validate(raw)
+
+
+def aprs_passcode(callsign):
+    """Algorithme public du passcode APRS-IS."""
+    call = callsign.upper().split('-')[0]
+    h = 0x73E2
+    for i in range(0, len(call), 2):
+        h ^= ord(call[i]) << 8
+        if i + 1 < len(call):
+            h ^= ord(call[i + 1])
+    return h & 0x7FFF
+
+
+def station_name(s):
+    return s['callsign'] if s['ssid'] == 0 else f"{s['callsign']}-{s['ssid']}"
+
+
+def is_configured(s):
+    return s['callsign'] != UNCONFIGURED_CALL
+
+
+# ------------------------------------------------------------------- rendu
+def render(template, dest, ctx, mode=0o644, owner=None):
+    """Écrit dest à partir du modèle. Retourne True si le contenu a changé."""
+    with open(os.path.join(TEMPLATES, template), encoding='utf-8') as f:
+        content = Template(f.read()).safe_substitute(ctx)
+    old = None
+    if os.path.exists(dest):
+        with open(dest, encoding='utf-8') as f:
+            old = f.read()
+    if old == content:
+        return False
+    tmp = dest + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        f.write(content)
+    os.chmod(tmp, mode)
+    if owner:
+        os.chown(tmp, *owner)
+    os.replace(tmp, dest)
+    log(f"  ✓ {dest} mis à jour")
+    return True
+
+
+def set_usb_hub(enabled):
+    """Ajoute/retire max_usb_current=1 dans config.txt. Retourne True si modifié."""
+    if not os.path.exists(BOOT_CONFIG):
+        return False
+    with open(BOOT_CONFIG, encoding='utf-8') as f:
+        lines = f.read().splitlines()
+    marker = '# aprs-igate: hub USB'
+    kept = [l for l in lines if l.strip() not in (marker, 'max_usb_current=1')]
+    if enabled:
+        kept += [marker, 'max_usb_current=1']
+    if kept == lines:
+        return False
+    with open(BOOT_CONFIG, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(kept) + '\n')
+    log(f"  ✓ {BOOT_CONFIG} : max_usb_current {'activé' if enabled else 'retiré'} (redémarrage requis)")
+    return True
+
+
+# ----------------------------------------------------------------- actions
+def action_apply(env):
+    s, errors = load_settings()
+    if errors:
+        for e in errors:
+            log('  ✗ ' + e)
+        return False, 'Réglages invalides : ' + ' ; '.join(errors)
+
+    station = station_name(s)
+    passcode = s['passcode'] or str(aprs_passcode(s['callsign']))
+    if s['beacon']:
+        beacon = (f'PBEACON delay=1 every={s["beacon_every"]} '
+                  f'lat={s["lat"]:.4f} long={s["lon"]:.4f} symbol="igate" '
+                  f'comment="{s["beacon_comment"]}"')
+    else:
+        beacon = '# Balise désactivée dans /admin'
+
+    ctx = {
+        'IGATE_USER': env['IGATE_USER'],
+        'IGATE_HOME': env['IGATE_HOME'],
+        'STATION': station,
+        'PASSCODE': passcode,
+        'IGSERVER': s['igserver'],
+        'IGFILTER': s['igfilter'],
+        'BEACON_LINE': beacon,
+        'FREQ': s['freq'],
+        'FREQ_LABEL': s['freq'].rstrip('M') + ' MHz',
+        'GAIN': f"{s['gain']:g}",
+        'PPM': str(s['ppm']),
+        'RETENTION_DAYS': str(s['retention_days']),
+        'BACKUP_SCHEDULE': s['backup_schedule'],
+        'BACKUP_CRON': BACKUP_CRON.get(s['backup_schedule'], '# désactivée:'),
+    }
+    owner = (env['UID'], env['GID'])
+    home = env['IGATE_HOME']
+
+    os.makedirs(os.path.join(home, 'direwolf_logs'), exist_ok=True)
+    os.chown(os.path.join(home, 'direwolf_logs'), *owner)
+
+    dw = render('direwolf.conf.tmpl', os.path.join(home, 'direwolf.conf'), ctx, 0o640, owner)
+    u1 = render('aprs-igate.service.tmpl', '/etc/systemd/system/aprs-igate.service', ctx)
+    u2 = render('aprs-parser.service.tmpl', '/etc/systemd/system/aprs-parser.service', ctx)
+    render('aprs-igate.cron.tmpl', '/etc/cron.d/aprs-igate', ctx)
+    reboot_needed = set_usb_hub(s['usb_hub'])
+
+    if u1 or u2:
+        run(['systemctl', 'daemon-reload'])
+
+    if not is_configured(s):
+        run(['systemctl', 'disable', '--now', 'aprs-parser.service', 'aprs-igate.service'])
+        return True, "Réglages enregistrés. Entrez votre indicatif pour démarrer l'iGate."
+
+    run(['systemctl', 'enable', 'aprs-igate.service', 'aprs-parser.service'])
+    igate_active = run(['systemctl', 'is-active', '--quiet', 'aprs-igate.service']).returncode == 0
+    if dw or u1 or not igate_active:
+        run(['systemctl', 'restart', 'aprs-igate.service'])
+    if u2 or dw or u1 or not igate_active:
+        run(['systemctl', 'restart', 'aprs-parser.service'])
+    else:
+        run(['systemctl', 'start', 'aprs-parser.service'])
+
+    msg = f"Réglages appliqués pour {station}."
+    if reboot_needed:
+        msg += " Redémarrez le Pi pour activer le réglage du hub USB."
+    return True, msg
+
+
+def action_restart(env):
+    r = run(['systemctl', 'restart', 'aprs-igate.service', 'aprs-parser.service', 'nginx'])
+    return r.returncode == 0, 'Services redémarrés.' if r.returncode == 0 else 'Échec du redémarrage.'
+
+
+def action_backup(env):
+    r = run([os.path.join(env['IGATE_HOME'], 'backup-aprs-config.sh')])
+    return r.returncode == 0, 'Sauvegarde créée.' if r.returncode == 0 else 'Échec de la sauvegarde.'
+
+
+def action_usb_backup(env):
+    r = run([os.path.join(env['IGATE_HOME'], 'backup-to-usb.sh')])
+    return r.returncode == 0, 'Sauvegardes copiées sur la clé USB.' if r.returncode == 0 \
+        else 'Échec : la clé USB est-elle branchée et montée ?'
+
+
+def action_tiles(env):
+    r = run([os.path.join(env['IGATE_HOME'], 'download-map-tiles.sh')])
+    return r.returncode == 0, 'Tuiles téléchargées.' if r.returncode == 0 \
+        else 'Échec du téléchargement des tuiles (Internet disponible ?).'
+
+
+def action_clear_tiles(env):
+    if os.path.isdir(TILE_DIR):
+        for name in os.listdir(TILE_DIR):
+            path = os.path.join(TILE_DIR, name)
+            if name.isdigit() and os.path.isdir(path):   # dossiers de zoom seulement
+                shutil.rmtree(path)
+    return True, 'Cache des tuiles vidé.'
+
+
+def action_reboot(env):
+    write_status('reboot', True, 'Redémarrage du Pi en cours...')
+    run(['systemctl', 'reboot'])
+    return True, 'Redémarrage du Pi en cours...'
+
+
+HANDLERS = {
+    'apply': action_apply, 'restart': action_restart, 'backup': action_backup,
+    'usb-backup': action_usb_backup, 'tiles': action_tiles,
+    'clear-tiles': action_clear_tiles, 'reboot': action_reboot,
+}
+
+
+def do(action, env):
+    log(f"=== Action : {action}")
+    try:
+        ok, msg = HANDLERS[action](env)
+    except Exception as e:  # on veut toujours un statut lisible dans /admin
+        ok, msg = False, f"Erreur : {e}"
+    log(('✓ ' if ok else '✗ ') + msg)
+    write_status(action, ok, msg)
+    return ok
+
+
+def process_queue(env):
+    os.makedirs(QUEUE, exist_ok=True)
+    ok = True
+    for name in sorted(os.listdir(QUEUE)):
+        path = os.path.join(QUEUE, name)
+        try:
+            os.remove(path)          # retirer d'abord : pas de boucle infinie
+        except OSError:
+            continue
+        action = name.split('-', 1)[-1]
+        if action not in ACTIONS:
+            log(f"Demande ignorée (inconnue) : {name}")
+            continue
+        ok = do(action, env) and ok
+    return ok
+
+
+def main():
+    arg = sys.argv[1] if len(sys.argv) > 1 else 'apply'
+    if arg == 'get':
+        # Lecture d'un réglage (utilisé par les scripts bash) : pas besoin de root
+        s, _ = load_settings()
+        key = sys.argv[2] if len(sys.argv) > 2 else ''
+        if key == 'station':
+            print(station_name(s))
+        elif key in s:
+            v = s[key]
+            print(('yes' if v else 'no') if isinstance(v, bool) else v)
+        else:
+            raise SystemExit(f"Réglage inconnu : {key}")
+        return
+    if os.geteuid() != 0:
+        raise SystemExit("Ce script doit être lancé en root (sudo).")
+    env = read_install_env()
+    if arg == '--queue':
+        process_queue(env)
+        sys.exit(0)  # le résultat est dans status.json ; ne pas bloquer l'unité .path
+    if arg not in ACTIONS:
+        raise SystemExit(__doc__)
+    sys.exit(0 if do(arg, env) else 1)
+
+
+if __name__ == '__main__':
+    main()

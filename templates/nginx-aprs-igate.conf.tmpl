@@ -1,0 +1,85 @@
+# Site web local de l'iGate APRS - généré par install.sh
+# Serveur par défaut : répond à http://<IP>, http://aprs-igate,
+# http://aprs-igate.local.mesh (AREDN) ou tout autre nom.
+
+# /tiles/Z/X/Y.png  ->  /Z/X/Y.png sur tile.openstreetmap.org
+map $uri $osm_tile_path {
+    "~^/tiles(?<p>/\d+/\d+/\d+\.png)$" $p;
+    default "";
+}
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    root /var/www/aprs;
+    index index.php index.html;
+
+    # Résolution DNS au moment de la requête : nginx démarre même sans Internet
+    resolver ${DNS_RESOLVERS} valid=300s ipv6=off;
+    resolver_timeout 3s;
+
+    # Ne jamais servir la base de données ni les fichiers cachés
+    location ~* \.(db|sqlite|sqlite3)$ {
+        deny all;
+    }
+    location ~ /\. {
+        deny all;
+    }
+
+    # ------------------------------------------------------------------
+    #  Tuiles de carte avec cache sur le Pi
+    #  1. La tuile est déjà dans /var/www/aprs/tiles  -> servie localement
+    #  2. Sinon nginx la télécharge sur OpenStreetMap, la sert ET la garde
+    #     (proxy_store) : la prochaine fois, elle viendra du Pi.
+    #  Les navigateurs la gardent aussi 30 jours dans leur propre cache.
+    # ------------------------------------------------------------------
+    location /tiles/ {
+        try_files $uri @osm_tiles;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+    location @osm_tiles {
+        if ($osm_tile_path = "") {
+            return 404;
+        }
+        set $osm_host tile.openstreetmap.org;
+        proxy_pass https://$osm_host$osm_tile_path;
+        proxy_ssl_server_name on;
+        proxy_set_header Host $osm_host;
+        # Politique d'utilisation d'OSM : identifier l'application
+        proxy_set_header User-Agent "aprs-igate-kit/1.0 (+https://github.com/banshee1971/iGate-APRS-avec-un-Raspberry-Pi-Zero-2W)";
+        proxy_set_header Cookie "";
+        proxy_set_header Referer "";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 15s;
+
+        # Garder la tuile sur la carte SD (seulement les réponses 200 complètes)
+        proxy_store /var/www/aprs$uri;
+        proxy_store_access user:rw group:rw all:r;
+
+        proxy_hide_header Set-Cookie;
+        proxy_hide_header Cache-Control;
+        proxy_hide_header Expires;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+    # Tuiles du cache SEULEMENT (carte Offline) : jamais de requête Internet
+    location /tiles-cache/ {
+        alias /var/www/aprs/tiles/;
+        expires 30d;
+        add_header Cache-Control "public";
+        log_not_found off;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:${PHP_FPM_SOCK};
+    }
+}

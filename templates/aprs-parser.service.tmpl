@@ -1,0 +1,21 @@
+[Unit]
+Description=APRS Packet Parser
+After=aprs-igate.service
+Requires=aprs-igate.service
+
+[Service]
+Type=simple
+User=${IGATE_USER}
+# Nécessaire pour lire le journal systemd du service aprs-igate
+SupplementaryGroups=systemd-journal
+WorkingDirectory=${IGATE_HOME}
+Environment=APRS_DB_PATH=/var/www/aprs/packets.db
+Environment=APRS_RETENTION_DAYS=${RETENTION_DAYS}
+Environment="APRS_FREQ_LABEL=${FREQ_LABEL}"
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 ${IGATE_HOME}/parse_direwolf.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,28 @@
+# =====================================================================
+#  Direwolf - iGate APRS en réception seulement (${STATION})
+#  NE PAS MODIFIER À LA MAIN : ce fichier est régénéré à chaque
+#  enregistrement dans la page de configuration  http://<ip-du-pi>/admin
+# =====================================================================
+
+# Identification de la station
+MYCALL ${STATION}
+IGSERVER ${IGSERVER}
+IGLOGIN ${STATION} ${PASSCODE}
+
+# Entrée audio (depuis rtl_fm, par stdin)
+ADEVICE stdin null
+ACHANNELS 1
+
+# Fréquence (${FREQ}) configurée dans rtl_fm (voir aprs-igate.service)
+MODEM 1200
+FIX_BITS 1
+
+# Configuration iGate
+IGTXVIA 0,WIDE1-1
+IGFILTER ${IGFILTER}
+
+# Position de l'iGate (balise envoyée vers APRS-IS)
+${BEACON_LINE}
+
+# Journaux
+LOGDIR ${IGATE_HOME}/direwolf_logs

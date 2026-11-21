@@ -1,0 +1,5 @@
+# Les scripts tournent sur le Raspberry Pi : toujours des fins de ligne LF,
+# même si le dépôt est cloné/édité sous Windows.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
