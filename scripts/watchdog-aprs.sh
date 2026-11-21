@@ -6,8 +6,13 @@
 IGATE_HOME="${IGATE_HOME:-/home/pi}"
 LOG="$IGATE_HOME/aprs-watchdog.log"
 
+# Test de gain en cours (lancé depuis /admin) : il libère le dongle exprès
+[ -e /run/aprs-igate-gain-test.lock ] && exit 0
+
 # Vérifier que le RTL-SDR est présent
-if ! lsusb | grep -q "0bda:2838"; then
+# Identifiants USB des clés RTL2832U reconnues par rtl_fm
+RTL_IDS='0bda:283[28]|0413:6680|0413:6f0f|0458:707f|0ccd:00(a9|b3|d3|e0)|185b:06[25]0|1b80:d39[345d]|1d19:110[123]|1f4d:[bc]803'
+if ! lsusb | grep -Eq "ID ($RTL_IDS)"; then
     echo "[$(date)] ⚠️ RTL-SDR déconnecté!" >> "$LOG"
 fi
 

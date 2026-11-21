@@ -1,0 +1,91 @@
+#!/bin/bash
+# =====================================================================
+#  aprs-admin-passwd — crée ou change le compte de la page /admin
+# =====================================================================
+#  sudo aprs-admin-passwd                  demande le nom et le mot de passe
+#  sudo aprs-admin-passwd --random FICHIER mot de passe aléatoire, écrit
+#                                          dans FICHIER (lisible par root seulement)
+#  Sans clavier (automatisation) : ADMIN_USER=... ADMIN_PASSWORD=... aprs-admin-passwd
+#
+#  Le mot de passe est stocké chiffré (bcrypt) dans
+#  /var/lib/aprs-igate/admin-auth.json, lisible par le serveur web seulement.
+# =====================================================================
+set -euo pipefail
+
+AUTH=/var/lib/aprs-igate/admin-auth.json
+MIN_LEN=8
+RANDOM_FILE=""
+
+case "${1:-}" in
+    --random) RANDOM_FILE="${2:?--random demande un nom de fichier}" ;;
+    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    "") ;;
+    *) echo "Option inconnue : $1 (voir --help)"; exit 1 ;;
+esac
+
+if [ "$(id -u)" -ne 0 ]; then
+    exec sudo "$0" "$@"
+fi
+command -v php >/dev/null || { echo "PHP est requis (sudo apt install php-cli)"; exit 1; }
+
+CURRENT_USER="$(php -r '$a = @json_decode(@file_get_contents($argv[1]), true); echo $a["user"] ?? "";' "$AUTH" 2>/dev/null || true)"
+NEW_USER="${ADMIN_USER:-}"
+NEW_PASS="${ADMIN_PASSWORD:-}"
+
+valid_user() { [[ "$1" =~ ^[A-Za-z0-9._-]{1,32}$ ]]; }
+
+if [ -n "$RANDOM_FILE" ]; then
+    NEW_USER="${NEW_USER:-${CURRENT_USER:-admin}}"
+    NEW_PASS="$(head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | cut -c1-14)"
+elif [ -z "$NEW_PASS" ]; then
+    # Saisie au clavier, directement sur le terminal (jamais dans un journal)
+    exec 3<>/dev/tty || { echo "Pas de terminal : utilisez --random ou ADMIN_PASSWORD"; exit 1; }
+    DEFAULT_USER="${NEW_USER:-${CURRENT_USER:-admin}}"
+    while true; do
+        printf "Nom d'utilisateur pour /admin [%s] : " "$DEFAULT_USER" >&3
+        read -r -u 3 NEW_USER
+        NEW_USER="${NEW_USER:-$DEFAULT_USER}"
+        valid_user "$NEW_USER" && break
+        echo "  Lettres, chiffres, point, tiret ou souligné seulement (32 max)." >&3
+    done
+    while true; do
+        printf "Mot de passe (%d caractères minimum) : " "$MIN_LEN" >&3
+        read -r -s -u 3 NEW_PASS; echo >&3
+        if [ "${#NEW_PASS}" -lt "$MIN_LEN" ]; then
+            echo "  Trop court." >&3; continue
+        fi
+        printf "Confirmez le mot de passe : " >&3
+        read -r -s -u 3 CONFIRM; echo >&3
+        [ "$NEW_PASS" = "$CONFIRM" ] && break
+        echo "  Les deux mots de passe ne correspondent pas." >&3
+    done
+    exec 3>&-
+fi
+
+NEW_USER="${NEW_USER:-admin}"
+valid_user "$NEW_USER" || { echo "Nom d'utilisateur invalide : $NEW_USER"; exit 1; }
+[ "${#NEW_PASS}" -ge "$MIN_LEN" ] || { echo "Mot de passe trop court ($MIN_LEN caractères minimum)"; exit 1; }
+
+install -d -o root -g www-data -m 2775 "$(dirname "$AUTH")"
+TMP="$(mktemp "$AUTH.XXXXXX")"
+# Le mot de passe passe par l'environnement : il n'apparaît pas dans « ps »
+ADMIN_USER="$NEW_USER" ADMIN_PASSWORD="$NEW_PASS" AUTH_TMP="$TMP" php -r '
+    $data = [
+        "user"    => getenv("ADMIN_USER"),
+        "hash"    => password_hash(getenv("ADMIN_PASSWORD"), PASSWORD_DEFAULT),
+        "updated" => date("c"),
+    ];
+    exit(file_put_contents(getenv("AUTH_TMP"), json_encode($data, JSON_PRETTY_PRINT) . "\n") ? 0 : 1);
+'
+chown www-data:www-data "$TMP"
+chmod 600 "$TMP"
+mv -f "$TMP" "$AUTH"
+
+if [ -n "$RANDOM_FILE" ]; then
+    umask 077
+    printf 'Page /admin de l iGate APRS\nUtilisateur : %s\nMot de passe : %s\n' "$NEW_USER" "$NEW_PASS" > "$RANDOM_FILE"
+    chmod 600 "$RANDOM_FILE"
+    echo "Compte /admin « $NEW_USER » créé ; mot de passe dans $RANDOM_FILE"
+else
+    echo "Compte /admin « $NEW_USER » enregistré."
+fi

@@ -6,7 +6,8 @@
 #     git clone https://github.com/banshee1971/iGate-APRS-avec-un-Raspberry-Pi-Zero-2W.git
 #     cd iGate-APRS-avec-un-Raspberry-Pi-Zero-2W
 #     sudo ./install.sh
-#  Puis ouvrez  http://<adresse-du-pi>/admin  pour tout configurer.
+#  Le script demande d'abord le nom d'utilisateur et le mot de passe de la
+#  page /admin, puis ouvrez  http://<adresse-du-pi>/admin  pour tout configurer.
 #
 #  Mise à jour du kit (vos réglages sont conservés) :
 #     git pull && sudo ./install.sh --skip-upgrade
@@ -14,7 +15,10 @@
 #  Options :
 #     --skip-upgrade       ne pas faire « apt upgrade » (plus rapide)
 #     --rebuild-direwolf   recompiler Direwolf même s'il est déjà installé
+#     --reset-admin        redemander le compte de la page /admin
 #     --help               afficher cette aide
+#  Sans clavier : sudo ADMIN_USER=admin ADMIN_PASSWORD=... ./install.sh
+#  (sinon un mot de passe aléatoire est écrit dans /root/aprs-admin-password.txt)
 # =====================================================================
 set -euo pipefail
 
@@ -23,12 +27,16 @@ LOG_FILE=/var/log/aprs-igate-install.log
 SKIP_UPGRADE=no
 REBUILD_DIREWOLF=no
 REBOOT_NEEDED=no
+RESET_ADMIN=no
+AUTH_FILE=/var/lib/aprs-igate/admin-auth.json
+RANDOM_PW_FILE=/root/aprs-admin-password.txt
 
 for arg in "$@"; do
     case "$arg" in
         --skip-upgrade) SKIP_UPGRADE=yes ;;
         --rebuild-direwolf) REBUILD_DIREWOLF=yes ;;
-        -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --reset-admin) RESET_ADMIN=yes ;;
+        -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "Option inconnue : $arg (voir --help)"; exit 1 ;;
     esac
 done
@@ -46,6 +54,44 @@ if [ "$IGATE_USER" = "root" ] || ! id "$IGATE_USER" >/dev/null 2>&1; then
     exit 1
 fi
 IGATE_HOME="$(getent passwd "$IGATE_USER" | cut -d: -f6)"
+
+# ---------------------------------------------------------------------
+#  Compte de la page /admin : demandé tout de suite, pour ne pas attendre
+#  la fin de l'installation (le mot de passe n'est jamais écrit au journal)
+# ---------------------------------------------------------------------
+ADMIN_USER="${ADMIN_USER:-}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
+ADMIN_MODE=keep
+if [ ! -s "$AUTH_FILE" ] || [ "$RESET_ADMIN" = yes ]; then
+    if [ -n "$ADMIN_PASSWORD" ]; then
+        ADMIN_MODE=env
+    elif { exec 3<>/dev/tty; } 2>/dev/null; then
+        ADMIN_MODE=env
+        echo
+        echo "=== Compte de la page de configuration /admin ==="
+        while true; do
+            printf "Nom d'utilisateur [admin] : " >&3
+            read -r -u 3 ADMIN_USER
+            ADMIN_USER="${ADMIN_USER:-admin}"
+            [[ "$ADMIN_USER" =~ ^[A-Za-z0-9._-]{1,32}$ ]] && break
+            echo "  Lettres, chiffres, point, tiret ou souligné seulement." >&3
+        done
+        while true; do
+            printf "Mot de passe (8 caractères minimum) : " >&3
+            read -r -s -u 3 ADMIN_PASSWORD; echo >&3
+            if [ "${#ADMIN_PASSWORD}" -lt 8 ]; then echo "  Trop court." >&3; continue; fi
+            printf "Confirmez le mot de passe : " >&3
+            read -r -s -u 3 ADMIN_CONFIRM; echo >&3
+            [ "$ADMIN_PASSWORD" = "$ADMIN_CONFIRM" ] && break
+            echo "  Les deux mots de passe ne correspondent pas." >&3
+        done
+        unset ADMIN_CONFIRM
+        exec 3>&-
+        echo "Merci ! L'installation peut maintenant se faire sans vous."
+    else
+        ADMIN_MODE=random
+    fi
+fi
 
 exec > >(tee -a "$LOG_FILE") 2>&1
 
@@ -70,7 +116,7 @@ fi
 apt-get install -y \
     git cmake build-essential libasound2-dev libudev-dev libhamlib-dev libgps-dev \
     rtl-sdr sox alsa-utils usbutils \
-    nginx php-fpm php-sqlite3 sqlite3 python3 \
+    nginx php-fpm php-cli php-sqlite3 sqlite3 python3 \
     gettext-base curl rsync
 ok "Paquets installés"
 
@@ -93,6 +139,8 @@ if lsmod | grep -q '^dvb_usb_rtl28xxu'; then
 fi
 usermod -a -G plugdev,dialout,systemd-journal "$IGATE_USER"
 ok "$IGATE_USER ajouté aux groupes plugdev, dialout, systemd-journal"
+# La page /admin -> Direwolf lit le journal de l'iGate
+usermod -a -G systemd-journal www-data
 
 # ---------------------------------------------------------------------
 step "3/9 Direwolf"
@@ -133,12 +181,26 @@ install -m 644 "$KIT_DIR"/templates/*.tmpl "$KIT_DIR"/templates/99-rtlsdr-restar
     /usr/local/share/aprs-igate/templates/
 install -m 644 "$KIT_DIR/web/lib/settings.schema.json" /usr/local/share/aprs-igate/
 install -m 755 "$KIT_DIR/backend/aprs-apply-config" /usr/local/sbin/aprs-apply-config
+install -m 755 "$KIT_DIR/backend/aprs-admin-passwd" /usr/local/sbin/aprs-admin-passwd
 
 # État partagé avec l'interface web (www-data y écrit les réglages et demandes)
 install -d -o root -g www-data -m 2775 /var/lib/aprs-igate
 install -d -o www-data -g www-data -m 2775 /var/lib/aprs-igate/queue
 touch /var/lib/aprs-igate/apply.log
 chmod 644 /var/lib/aprs-igate/apply.log
+
+case "$ADMIN_MODE" in
+    env)
+        ADMIN_USER="${ADMIN_USER:-admin}" ADMIN_PASSWORD="$ADMIN_PASSWORD"             /usr/local/sbin/aprs-admin-passwd
+        ;;
+    random)
+        /usr/local/sbin/aprs-admin-passwd --random "$RANDOM_PW_FILE"
+        ;;
+    keep)
+        ok "Compte /admin existant conservé (--reset-admin pour le changer)"
+        ;;
+esac
+unset ADMIN_PASSWORD
 
 install -m 644 "$KIT_DIR/templates/aprs-admin.path" "$KIT_DIR/templates/aprs-admin.service" /etc/systemd/system/
 install -m 644 "$KIT_DIR/templates/99-rtlsdr-restart.rules" /etc/udev/rules.d/
@@ -223,8 +285,10 @@ envsubst '${PHP_FPM_SOCK} ${DNS_RESOLVERS}' \
 ln -sf /etc/nginx/sites-available/aprs-igate /etc/nginx/sites-enabled/aprs-igate
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
-systemctl enable --now "$(basename "$PHP_FPM_SOCK" .sock)" nginx
-systemctl restart nginx
+PHP_FPM_SERVICE="$(basename "$PHP_FPM_SOCK" .sock)"
+systemctl enable --now "$PHP_FPM_SERVICE" nginx
+# Redémarrer PHP pour qu'il profite du groupe systemd-journal (page Direwolf)
+systemctl restart "$PHP_FPM_SERVICE" nginx
 ok "Nginx configuré (PHP : $PHP_FPM_SOCK, DNS : $DNS_RESOLVERS)"
 
 # ---------------------------------------------------------------------
@@ -235,10 +299,12 @@ step "8/9 Application des réglages"
 # ---------------------------------------------------------------------
 step "9/9 Vérifications"
 # ---------------------------------------------------------------------
-if lsusb | grep -q '0bda:2838'; then
-    ok "Dongle RTL-SDR détecté"
+RTL_IDS='0bda:283[28]|0413:6680|0413:6f0f|0458:707f|0ccd:00(a9|b3|d3|e0)|185b:06[25]0|1b80:d39[345d]|1d19:110[123]|1f4d:[bc]803'
+SDR_LINE="$(lsusb | grep -E "ID ($RTL_IDS)" | head -n1 || true)"
+if [ -n "$SDR_LINE" ]; then
+    ok "Dongle RTL-SDR détecté : ${SDR_LINE#*ID }"
 else
-    warn "Dongle RTL-SDR non détecté (branché ?)"
+    warn "Dongle RTL-SDR non détecté (branché ? câble de données ?)"
 fi
 for unit in nginx aprs-admin.path; do
     if systemctl is-active --quiet "$unit"; then ok "$unit actif"; else warn "$unit inactif"; fi
@@ -254,6 +320,14 @@ for ip in $IPS; do
     echo "     http://$ip/admin"
 done
 echo "     http://$(hostname)/admin"
+echo
+if [ "$ADMIN_MODE" = random ]; then
+    echo " Identifiants : sudo cat $RANDOM_PW_FILE"
+    echo " (changez-les dans /admin -> Compte, ou avec : sudo aprs-admin-passwd)"
+else
+    echo " Connectez-vous avec le compte choisi au début de l'installation"
+    echo " (oublié ? sudo aprs-admin-passwd)."
+fi
 echo
 echo " Entrez votre indicatif et votre position, puis cliquez sur"
 echo " « Enregistrer et appliquer » : l'iGate démarrera tout seul."

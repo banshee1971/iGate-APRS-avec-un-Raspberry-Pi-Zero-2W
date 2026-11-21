@@ -13,7 +13,7 @@ détecte la demande et lance ce script en root, qui :
 Usage :
   aprs-apply-config               applique les réglages (= action "apply")
   aprs-apply-config --queue       traite les demandes en attente (systemd)
-  aprs-apply-config <action>      apply | restart | backup | usb-backup | tiles | clear-tiles | reboot
+  aprs-apply-config <action>      apply | restart | backup | usb-backup | tiles | clear-tiles | gain-test | reboot
   aprs-apply-config get <clé>     affiche un réglage (ex.: get lat, get station)
 """
 import json
@@ -37,8 +37,9 @@ STATUS = STATE + '/status.json'
 LOG = STATE + '/apply.log'
 BOOT_CONFIG = '/boot/firmware/config.txt'
 
-ACTIONS = ('apply', 'restart', 'backup', 'usb-backup', 'tiles', 'clear-tiles', 'reboot')
+ACTIONS = ('apply', 'restart', 'backup', 'usb-backup', 'tiles', 'clear-tiles', 'gain-test', 'reboot')
 TILE_DIR = '/var/www/aprs/tiles'
+GAIN_RESULTS = STATE + '/gain-test.txt'
 # Caractères jamais acceptés dans une valeur (protection des fichiers générés)
 UNSAFE = re.compile(r'[\x00-\x1f"\'`$\\;|&<>]')
 UNCONFIGURED_CALL = 'N0CALL'
@@ -204,6 +205,20 @@ def set_usb_hub(enabled):
     return True
 
 
+def rtl_options(s):
+    """Options de rtl_fm réglées dans /admin -> Direwolf (gain, filtre, bias-tee)."""
+    opts = [] if s['rtl_agc'] else ['-g', f"{s['gain']:g}"]
+    if s['rtl_dc_block']:
+        opts += ['-E', 'dc']
+    if s['rtl_bias_tee']:
+        opts += ['-T']
+    return ' '.join(opts)
+
+
+def fix_bits_line(s):
+    return '0' if s['dw_fix_bits'] == '0' else f"{s['dw_fix_bits']} {s['dw_fix_sanity']}"
+
+
 # ----------------------------------------------------------------- actions
 def action_apply(env):
     s, errors = load_settings()
@@ -233,6 +248,10 @@ def action_apply(env):
         'FREQ_LABEL': s['freq'].rstrip('M') + ' MHz',
         'GAIN': f"{s['gain']:g}",
         'PPM': str(s['ppm']),
+        'SAMPLE_RATE': s['rtl_sample_rate'],
+        'RTL_OPTS': rtl_options(s),
+        'MODEM_OPTS': s['dw_modem_profile'],
+        'FIX_BITS': fix_bits_line(s),
         'RETENTION_DAYS': str(s['retention_days']),
         'BACKUP_SCHEDULE': s['backup_schedule'],
         'BACKUP_CRON': BACKUP_CRON.get(s['backup_schedule'], '# désactivée:'),
@@ -293,6 +312,12 @@ def action_tiles(env):
         else 'Échec du téléchargement des tuiles (Internet disponible ?).'
 
 
+def action_gain_test(env):
+    script = os.path.join(env['IGATE_HOME'], 'test-direwolf-gain.sh')
+    r = run([script], env={**os.environ, 'GAIN_RESULTS': GAIN_RESULTS})
+    return r.returncode == 0, 'Test de gain terminé : voir les résultats dans la page Direwolf.'         if r.returncode == 0 else 'Échec du test de gain (dongle branché ?).'
+
+
 def action_clear_tiles(env):
     if os.path.isdir(TILE_DIR):
         for name in os.listdir(TILE_DIR):
@@ -311,7 +336,7 @@ def action_reboot(env):
 HANDLERS = {
     'apply': action_apply, 'restart': action_restart, 'backup': action_backup,
     'usb-backup': action_usb_backup, 'tiles': action_tiles,
-    'clear-tiles': action_clear_tiles, 'reboot': action_reboot,
+    'clear-tiles': action_clear_tiles, 'gain-test': action_gain_test, 'reboot': action_reboot,
 }
 
 

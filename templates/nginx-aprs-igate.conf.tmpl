@@ -27,6 +27,10 @@ server {
     location ~ /\. {
         deny all;
     }
+    # Code et réglages internes de l'interface (inclus par PHP, jamais servis)
+    location ^~ /lib/ {
+        deny all;
+    }
 
     # ------------------------------------------------------------------
     #  Tuiles de carte avec cache sur le Pi

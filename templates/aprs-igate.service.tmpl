@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=${IGATE_USER}
 WorkingDirectory=${IGATE_HOME}
-ExecStart=/bin/bash -c '/usr/bin/rtl_fm -f ${FREQ} -s 48000 -g ${GAIN} -p ${PPM} - | /usr/local/bin/direwolf -c ${IGATE_HOME}/direwolf.conf -r 48000 -D 1 -t 0 -'
+ExecStart=/bin/bash -c '/usr/bin/rtl_fm -f ${FREQ} -s ${SAMPLE_RATE} ${RTL_OPTS} -p ${PPM} - | /usr/local/bin/direwolf -c ${IGATE_HOME}/direwolf.conf -r ${SAMPLE_RATE} -D 1 -t 0 -'
 Restart=always
 RestartSec=10
 

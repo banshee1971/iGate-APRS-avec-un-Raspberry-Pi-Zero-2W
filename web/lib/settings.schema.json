@@ -93,10 +93,22 @@
           "type": "choice",
           "default": "144.39M",
           "choices": [
-            { "value": "144.39M", "label": "144.390 MHz (Amérique du Nord)" },
-            { "value": "144.80M", "label": "144.800 MHz (Europe, Afrique)" },
-            { "value": "144.575M", "label": "144.575 MHz (Nouvelle-Zélande)" },
-            { "value": "145.175M", "label": "145.175 MHz (Australie)" }
+            {
+              "value": "144.39M",
+              "label": "144.390 MHz (Amérique du Nord)"
+            },
+            {
+              "value": "144.80M",
+              "label": "144.800 MHz (Europe, Afrique)"
+            },
+            {
+              "value": "144.575M",
+              "label": "144.575 MHz (Nouvelle-Zélande)"
+            },
+            {
+              "value": "145.175M",
+              "label": "145.175 MHz (Australie)"
+            }
           ]
         },
         {
@@ -107,7 +119,7 @@
           "min": 0,
           "max": 49.6,
           "decimals": 1,
-          "help": "20-30 : zone urbaine, signaux forts · 35-40 : usage général · 45-49 : zone rurale, signaux faibles."
+          "help": "20-30 : zone urbaine, signaux forts · 35-40 : usage général · 45-49 : zone rurale, signaux faibles. Ignoré si le gain automatique est activé."
         },
         {
           "key": "ppm",
@@ -117,6 +129,127 @@
           "min": -100,
           "max": 100,
           "help": "0 pour un dongle avec TCXO (RTL-SDR V3, V4)."
+        },
+        {
+          "key": "rtl_agc",
+          "label": "Gain automatique du tuner (AGC)",
+          "type": "bool",
+          "default": false,
+          "help": "Laisse le dongle choisir son gain. Rarement meilleur qu'un gain fixe bien réglé."
+        },
+        {
+          "key": "rtl_sample_rate",
+          "label": "Taux d'échantillonnage audio",
+          "type": "choice",
+          "default": "48000",
+          "choices": [
+            {
+              "value": "48000",
+              "label": "48 000 Hz (meilleur décodage)"
+            },
+            {
+              "value": "24000",
+              "label": "24 000 Hz (moins de CPU)"
+            },
+            {
+              "value": "22050",
+              "label": "22 050 Hz (moins de CPU)"
+            }
+          ],
+          "help": "Partagé par rtl_fm et Direwolf."
+        },
+        {
+          "key": "rtl_dc_block",
+          "label": "Filtre anti-composante continue (rtl_fm -E dc)",
+          "type": "bool",
+          "default": false,
+          "help": "Peut aider si le niveau audio dérive ou si le décodage est irrégulier."
+        },
+        {
+          "key": "rtl_bias_tee",
+          "label": "Bias-tee : alimenter un préampli (LNA) par le câble",
+          "type": "bool",
+          "default": false,
+          "help": "Seulement avec un RTL-SDR V3/V4 ET un préampli prévu pour ça. Ne jamais activer avec une antenne en court-circuit DC."
+        }
+      ],
+      "page": "direwolf"
+    },
+    {
+      "id": "decoder",
+      "title": "🐺 Décodage Direwolf",
+      "page": "direwolf",
+      "fields": [
+        {
+          "key": "dw_modem_profile",
+          "label": "Profil du démodulateur 1200 bauds",
+          "type": "choice",
+          "default": "",
+          "choices": [
+            {
+              "value": "",
+              "label": "Par défaut de Direwolf (recommandé)"
+            },
+            {
+              "value": "A",
+              "label": "A : un seul décodeur"
+            },
+            {
+              "value": "A+",
+              "label": "A+ : plusieurs seuils de décision (plus de CPU)"
+            },
+            {
+              "value": "B",
+              "label": "B : autre méthode de démodulation"
+            },
+            {
+              "value": "B+",
+              "label": "B+ : B avec plusieurs seuils (plus de CPU)"
+            }
+          ],
+          "help": "Le « + » essaie plusieurs seuils en parallèle : souvent quelques paquets de plus, au prix du CPU. Comparez avec le compteur de paquets."
+        },
+        {
+          "key": "dw_fix_bits",
+          "label": "Correction des bits erronés (FIX_BITS)",
+          "type": "choice",
+          "default": "1",
+          "choices": [
+            {
+              "value": "0",
+              "label": "0 : aucune"
+            },
+            {
+              "value": "1",
+              "label": "1 : corrige 1 bit (recommandé)"
+            },
+            {
+              "value": "2",
+              "label": "2 : corrige 2 bits (beaucoup plus de CPU)"
+            }
+          ],
+          "help": "Récupère des paquets légèrement abîmés. 2 peut saturer un Pi Zero."
+        },
+        {
+          "key": "dw_fix_sanity",
+          "label": "Vérification des paquets corrigés",
+          "type": "choice",
+          "default": "APRS",
+          "choices": [
+            {
+              "value": "APRS",
+              "label": "APRS : rejette ce qui ne ressemble pas à de l'APRS (recommandé)"
+            },
+            {
+              "value": "AX25",
+              "label": "AX25 : vérification minimale"
+            },
+            {
+              "value": "NONE",
+              "label": "NONE : aucune (risque de faux paquets)"
+            }
+          ],
+          "help": "S'applique seulement aux paquets réparés par FIX_BITS."
         }
       ]
     },
@@ -130,12 +263,30 @@
           "type": "choice",
           "default": "noam.aprs2.net",
           "choices": [
-            { "value": "noam.aprs2.net", "label": "noam.aprs2.net (Amérique du Nord)" },
-            { "value": "euro.aprs2.net", "label": "euro.aprs2.net (Europe)" },
-            { "value": "soam.aprs2.net", "label": "soam.aprs2.net (Amérique du Sud)" },
-            { "value": "asia.aprs2.net", "label": "asia.aprs2.net (Asie)" },
-            { "value": "aunz.aprs2.net", "label": "aunz.aprs2.net (Australie, N.-Z.)" },
-            { "value": "rotate.aprs2.net", "label": "rotate.aprs2.net (mondial)" }
+            {
+              "value": "noam.aprs2.net",
+              "label": "noam.aprs2.net (Amérique du Nord)"
+            },
+            {
+              "value": "euro.aprs2.net",
+              "label": "euro.aprs2.net (Europe)"
+            },
+            {
+              "value": "soam.aprs2.net",
+              "label": "soam.aprs2.net (Amérique du Sud)"
+            },
+            {
+              "value": "asia.aprs2.net",
+              "label": "asia.aprs2.net (Asie)"
+            },
+            {
+              "value": "aunz.aprs2.net",
+              "label": "aunz.aprs2.net (Australie, N.-Z.)"
+            },
+            {
+              "value": "rotate.aprs2.net",
+              "label": "rotate.aprs2.net (mondial)"
+            }
           ]
         },
         {
@@ -174,12 +325,30 @@
           "type": "choice",
           "default": "24",
           "choices": [
-            { "value": "1", "label": "Dernière heure" },
-            { "value": "6", "label": "6 dernières heures" },
-            { "value": "12", "label": "12 dernières heures" },
-            { "value": "24", "label": "24 dernières heures" },
-            { "value": "48", "label": "48 dernières heures" },
-            { "value": "168", "label": "7 derniers jours" }
+            {
+              "value": "1",
+              "label": "Dernière heure"
+            },
+            {
+              "value": "6",
+              "label": "6 dernières heures"
+            },
+            {
+              "value": "12",
+              "label": "12 dernières heures"
+            },
+            {
+              "value": "24",
+              "label": "24 dernières heures"
+            },
+            {
+              "value": "48",
+              "label": "48 dernières heures"
+            },
+            {
+              "value": "168",
+              "label": "7 derniers jours"
+            }
           ]
         }
       ]
@@ -202,10 +371,22 @@
           "type": "choice",
           "default": "monthly",
           "choices": [
-            { "value": "monthly", "label": "Mensuelle (le 1er à 2h)" },
-            { "value": "biweekly", "label": "Aux 15 jours (le 1er et le 15 à 1h)" },
-            { "value": "weekly", "label": "Hebdomadaire (dimanche à 3h)" },
-            { "value": "none", "label": "Désactivée" }
+            {
+              "value": "monthly",
+              "label": "Mensuelle (le 1er à 2h)"
+            },
+            {
+              "value": "biweekly",
+              "label": "Aux 15 jours (le 1er et le 15 à 1h)"
+            },
+            {
+              "value": "weekly",
+              "label": "Hebdomadaire (dimanche à 3h)"
+            },
+            {
+              "value": "none",
+              "label": "Désactivée"
+            }
           ]
         },
         {

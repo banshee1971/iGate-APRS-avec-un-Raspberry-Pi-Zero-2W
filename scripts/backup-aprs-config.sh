@@ -25,6 +25,7 @@ echo "=========================================="
 # 1. Réglages de l'interface /admin (la source de tout le reste)
 echo "✓ Sauvegarde des réglages /admin..."
 cp /var/lib/aprs-igate/settings.json "$BACKUP_PATH/" 2>/dev/null || echo "  (aucun réglage enregistré)"
+$SUDO cp /var/lib/aprs-igate/admin-auth.json "$BACKUP_PATH/" 2>/dev/null   # compte /admin (mot de passe chiffré)
 
 # 2. Configuration Direwolf (générée)
 echo "✓ Sauvegarde configuration Direwolf..."

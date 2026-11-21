@@ -14,8 +14,9 @@ ADEVICE stdin null
 ACHANNELS 1
 
 # Fréquence (${FREQ}) configurée dans rtl_fm (voir aprs-igate.service)
-MODEM 1200
-FIX_BITS 1
+# Démodulateur et correction d'erreurs : /admin -> Direwolf
+MODEM 1200 ${MODEM_OPTS}
+FIX_BITS ${FIX_BITS}
 
 # Configuration iGate
 IGTXVIA 0,WIDE1-1

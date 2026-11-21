@@ -5,7 +5,8 @@ Raspberry Pi Zero 2W et un dongle RTL-SDR :
 
 - les paquets reçus sur 144.390 MHz sont envoyés à **APRS-IS** (visibles sur [aprs.fi](https://aprs.fi)) ;
 - une **page web locale** affiche les paquets et une carte des stations, même sans Internet ;
-- **tout se configure dans le navigateur** (page `/admin`) : aucun fichier à éditer.
+- **tout se configure dans le navigateur** (page `/admin`, protégée par mot de passe) : aucun fichier à éditer ;
+- un **moniteur système** façon btop et une page **Direwolf** pour régler la réception en direct.
 
 Consommation totale : environ 2 W (Pi + hub USB).
 
@@ -17,13 +18,17 @@ Consommation totale : environ 2 W (Pi + hub USB).
 |---|---|
 | Raspberry Pi Zero 2W | Prenez la version avec connecteur (header) soudé |
 | Carte microSD | 16 Go minimum, 32 Go recommandé |
-| Dongle RTL-SDR (RTL2832U) | Le V3 suffit, pas besoin du V4 |
+| Dongle RTL-SDR (RTL2832U) | Le V3 suffit, pas besoin du V4 (voir la note plus bas) |
 | Antenne VHF | Accordée pour 144.390 MHz (Amérique du Nord) ou 144.800 MHz (Europe) |
 | Alimentation USB 5V / 2.5A | |
 | Câble micro-USB vers USB | Pour brancher le RTL-SDR |
 | Dissipateur Geekworm C296 | Optionnel, idéal avec le PiSugar 3 |
 | PiSugar 3 | Optionnel : batterie / UPS |
 | Petit hub USB avec RJ45 | Optionnel : réseau filaire (choisir un modèle qui consomme peu) |
+
+> **RTL-SDR Blog V4** : il utilise un tuner R828D qui demande un pilote récent. Si la page
+> `/admin` → Direwolf affiche un avertissement « V4 », installez le pilote de RTL-SDR Blog
+> (dépôt `rtlsdrblog/rtl-sdr-blog` sur GitHub) à la place du paquet `rtl-sdr`.
 
 ---
 
@@ -51,18 +56,25 @@ cd iGate-APRS-avec-un-Raspberry-Pi-Zero-2W
 sudo ./install.sh
 ```
 
-L'installation prend un bon moment sur un Pi Zero (mise à jour du système et
-compilation de Direwolf). À la fin, le script affiche l'adresse de la page de configuration.
+Le script commence par demander le **nom d'utilisateur et le mot de passe** de la page
+`/admin` (8 caractères minimum), puis travaille seul. L'installation prend un bon moment
+sur un Pi Zero (mise à jour du système et compilation de Direwolf). À la fin, le script
+affiche l'adresse de la page de configuration.
+
+Mot de passe oublié ? En SSH : `sudo aprs-admin-passwd`. On peut aussi le changer dans
+`/admin` → Compte.
 
 ## 3. Configurer dans le navigateur
 
-Ouvrez **`http://aprs-igate/admin`** (ou `http://<adresse-ip-du-pi>/admin`).
+Ouvrez **`http://aprs-igate/admin`** (ou `http://<adresse-ip-du-pi>/admin`) et connectez-vous.
+La page a quatre onglets.
+
+### ⚙️ Configuration
 
 | Section | Ce qu'on y règle |
 |---|---|
 | 📡 Station | Indicatif, SSID, passcode APRS-IS (calculé automatiquement) |
 | 📍 Position et balise | Latitude/longitude (cliquez sur la carte), balise oui/non, intervalle, commentaire |
-| 📻 Radio | Fréquence, gain du RTL-SDR, correction ppm |
 | 🌐 Serveur APRS-IS | Serveur régional, filtre |
 | 🖥️ Affichage | Titre et sous-titre de la page, période par défaut de la carte |
 | 💾 Données et sauvegardes | Durée de conservation des paquets, fréquence et rétention des sauvegardes, clé USB |
@@ -73,13 +85,40 @@ Cliquez sur **« Enregistrer et appliquer »** : Direwolf, les services et les t
 planifiées sont régénérés et redémarrés automatiquement. Tant que l'indicatif vaut
 `N0CALL`, l'iGate ne se connecte pas à APRS-IS.
 
-La page `/admin` affiche aussi l'état du système (services, dongle, paquets du jour,
+Cet onglet affiche aussi l'état du système (services, modèle du dongle, paquets du jour,
 cache) et des boutons : redémarrer les services, sauvegarder, copier sur clé USB,
 pré-télécharger ou vider les tuiles, redémarrer le Pi.
 
-> ⚠️ **Pas de mot de passe pour l'instant.** Toute personne qui atteint le Pi
-> sur le réseau peut modifier la configuration. Ne l'exposez que sur un réseau
-> de confiance (maison, AREDN), jamais directement sur Internet.
+### 🐺 Direwolf
+
+Tout ce qui sert à **mieux capter** :
+
+- **état en direct** (rafraîchi toutes les 5 s) : service, connexion APRS-IS, passcode
+  vérifié ou non, version, gain réel du tuner, redémarrages ;
+- **dongle SDR** : modèle détecté (ex. RTL-SDR Blog V3/V4, clé générique), chipset,
+  tuner (R820T, R828D, E4000…), numéro de série, vitesse USB, avec des conseils si
+  quelque chose cloche (aucun dongle, pilote DVB actif, dongle occupé, SDR non compatible) ;
+- **niveau audio** des derniers paquets sur une jauge (zone idéale 50-70) ;
+- **paquets décodés** : 15 min, 1 h, 24 h, stations uniques, histogramme par heure ;
+- **journal de Direwolf** en direct, en couleurs ;
+- **réglages** : fréquence, gain, ppm, gain automatique, taux d'échantillonnage,
+  filtre DC, bias-tee (préampli), profil du démodulateur (A, A+, B, B+), FIX_BITS ;
+- **test des gains** : un bouton teste 0, 20, 35, 40, 45 et 49 (environ 6 minutes) et
+  un bouton « Utiliser » applique le meilleur.
+
+### 📊 Système
+
+Un moniteur façon **btop**, rafraîchi toutes les 2 secondes : CPU (graphique, chaque cœur,
+fréquence, température), alimentation (sous-tension détectée), mémoire, disques
+(utilisé/libre), réseau (débits) et processus les plus actifs.
+
+### 👤 Compte
+
+Changer le nom d'utilisateur et le mot de passe de `/admin`.
+
+> ⚠️ La page `/admin` est protégée par mot de passe, mais le site est en HTTP (non
+> chiffré). Gardez-le sur un réseau de confiance (maison, AREDN), jamais directement
+> sur Internet.
 
 Vérifiez ensuite votre iGate sur `https://aprs.fi/#!call=a%2FVOTRE-INDICATIF-10`.
 
@@ -135,7 +174,8 @@ sudo ~/restore-aprs-config.sh ~/backups/aprs-igate-backup-DATE.tar.gz
 ~/test-direwolf-gain.sh 30 35 40   # ou vos propres valeurs
 ```
 
-Entrez ensuite le meilleur gain dans `/admin` → Radio.
+Le plus simple : `/admin` → Direwolf → **« Tester les gains »**, puis « Utiliser » sur le
+meilleur résultat. En ligne de commande, entrez ensuite le meilleur gain dans `/admin` → Direwolf.
 
 | Gain | Usage |
 |---|---|
@@ -154,6 +194,7 @@ sudo systemctl status aprs-igate aprs-parser nginx   # état des services
 sudo journalctl -u aprs-igate -f                     # paquets en temps réel
 sudo journalctl -u aprs-parser -f                    # insertion dans la base
 cat /var/lib/aprs-igate/apply.log                    # journal de /admin
+sudo aprs-admin-passwd                               # changer le compte de /admin
 sqlite3 /var/www/aprs/packets.db "SELECT callsign, COUNT(*) c FROM packets GROUP BY callsign ORDER BY c DESC LIMIT 10;"
 ```
 
@@ -197,8 +238,10 @@ Gestion de la batterie : `http://<ip-du-pi>:8421`. Pour l'allumer : appui court,
 | Élément | Emplacement sur le Pi |
 |---|---|
 | Réglages (écrits par `/admin`) | `/var/lib/aprs-igate/settings.json` |
+| Compte `/admin` (mot de passe chiffré bcrypt) | `/var/lib/aprs-igate/admin-auth.json` |
 | Description des réglages (formulaire + validation) | `web/lib/settings.schema.json` |
 | Application des réglages | `/usr/local/sbin/aprs-apply-config` |
+| Création / changement du compte `/admin` | `/usr/local/sbin/aprs-admin-passwd` |
 | Modèles des fichiers générés | `/usr/local/share/aprs-igate/templates/` |
 | Configuration Direwolf (générée) | `~/direwolf.conf` |
 | Base de données | `/var/www/aprs/packets.db` |
@@ -210,7 +253,7 @@ Le serveur web n'a aucun droit root : `/admin` dépose une demande dans
 qui **revalide chaque valeur** avant de toucher aux fichiers du système.
 
 **Ajouter un réglage** : décrivez-le dans `settings.schema.json` (libellé, aide, type,
-validation) et il apparaît dans `/admin`. Utilisez-le ensuite dans un modèle de
+validation) et il apparaît dans `/admin` (onglet Direwolf si sa section a `"page": "direwolf"`). Utilisez-le ensuite dans un modèle de
 `templates/` ou dans `aprs-apply-config`.
 
 ## Structure du dépôt
@@ -218,8 +261,9 @@ validation) et il apparaît dans `/admin`. Utilisez-le ensuite dans un modèle d
 ```
 install.sh                 installation / mise à jour
 backend/aprs-apply-config  applique les réglages (root)
+backend/aprs-admin-passwd  crée / change le compte de /admin
 parser/parse_direwolf.py   journal Direwolf -> base SQLite
-web/                       interface web (index, carte offline, /admin, lib/)
+web/                       interface web (index, carte offline, /admin avec ses onglets, lib/)
 templates/                 modèles : direwolf.conf, services systemd, nginx, cron, udev
 scripts/                   watchdog, backup, restauration, gain, tuiles
 ```

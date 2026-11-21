@@ -51,6 +51,10 @@ systemctl stop aprs-parser.service aprs-igate.service
 if [ -f "$BACKUP_DIR/settings.json" ]; then
     echo "✓ Restauration des réglages /admin..."
     install -o www-data -g www-data -m 664 "$BACKUP_DIR/settings.json" /var/lib/aprs-igate/settings.json
+    if [ -f "$BACKUP_DIR/admin-auth.json" ]; then
+        echo "✓ Restauration du compte /admin..."
+        install -o www-data -g www-data -m 600 "$BACKUP_DIR/admin-auth.json" /var/lib/aprs-igate/admin-auth.json
+    fi
 else
     # Ancien backup (fait avec le guide manuel) : on reprend direwolf.conf tel quel
     echo "⚠️  Backup sans settings.json (ancien format) : restauration de direwolf.conf seulement."
