@@ -8,11 +8,14 @@ Réglages (variables d'environnement, fournies par aprs-parser.service) :
   APRS_RETENTION_DAYS  jours de paquets conservés (défaut 30)
   APRS_FREQ_LABEL      fréquence affichée (défaut "144.39 MHz")
 """
+import json
 import os
 import re
 import sqlite3
 import subprocess
 from datetime import datetime
+
+from aprs_decode import decode   # décodage lisible (position, Mic-E, météo, messages...)
 
 DB_PATH = os.environ.get('APRS_DB_PATH', '/var/www/aprs/packets.db')
 RETENTION_DAYS = int(os.environ.get('APRS_RETENTION_DAYS', '30'))
@@ -73,15 +76,46 @@ def parse_coordinates(text):
     return lat, lon
 
 
-def insert_packet(callsign, raw_packet):
-    """Insère un paquet dans la base, avec coordonnées si disponibles."""
-    try:
+def decode_packet(raw_packet):
+    """Retourne (JSON décodé, lat, lon). lat/lon = position de la station
+    elle-même (pas celle d'un objet qu'elle annonce), pour la carte."""
+    d = decode(raw_packet)
+    lat, lon = d.get('lat'), d.get('lon')
+    if d.get('type') == 'object' or d.get('third_party'):
+        lat = lon = None
+    elif lat is None and d.get('type') in ('unknown', 'other'):
         lat, lon = parse_coordinates(raw_packet)
+    return json.dumps(d, ensure_ascii=False, separators=(',', ':')), lat, lon
+
+
+def backfill_decoded():
+    """Décode les paquets enregistrés avant l'ajout du décodeur."""
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    total = 0
+    while True:
+        rows = conn.execute("SELECT id, raw_packet FROM packets WHERE decoded_info IS NULL LIMIT 500").fetchall()
+        if not rows:
+            break
+        for pid, raw in rows:
+            info, lat, lon = decode_packet(raw or '')
+            conn.execute("UPDATE packets SET decoded_info = ?, latitude = ?, longitude = ? WHERE id = ?",
+                         (info, lat, lon, pid))
+        conn.commit()
+        total += len(rows)
+    conn.close()
+    if total:
+        log(f"{total} anciens paquets décodés")
+
+
+def insert_packet(callsign, raw_packet):
+    """Insère un paquet dans la base, décodé et avec coordonnées si disponibles."""
+    try:
+        info, lat, lon = decode_packet(raw_packet)
         conn = sqlite3.connect(DB_PATH, timeout=10)
         conn.execute(
-            "INSERT INTO packets (callsign, raw_packet, frequency, latitude, longitude) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (callsign, raw_packet, FREQ_LABEL, lat, lon)
+            "INSERT INTO packets (callsign, raw_packet, frequency, decoded_info, latitude, longitude) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (callsign, raw_packet, FREQ_LABEL, info, lat, lon)
         )
         conn.commit()
         conn.close()
@@ -102,6 +136,10 @@ def follow_logs():
 
     log(f"Démarrage du parser APRS (base: {DB_PATH}, rétention: {RETENTION_DAYS} jours)")
     cleanup_old_packets()
+    try:
+        backfill_decoded()
+    except Exception as e:
+        log(f"Décodage des anciens paquets impossible : {e}")
 
     last_cleanup = datetime.now()
     packet_count = 0

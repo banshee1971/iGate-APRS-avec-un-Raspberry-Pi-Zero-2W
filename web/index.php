@@ -1,6 +1,7 @@
 <?php
 // Configuration (réglages modifiables dans /admin)
 require __DIR__ . '/lib/settings.php';
+require __DIR__ . '/lib/packets.php';
 $S = aprs_load_settings();
 $db_path = APRS_DB_PATH;
 $db = new SQLite3($db_path);
@@ -23,7 +24,7 @@ $stats = $db->query("SELECT
 
 // Fonction pour récupérer les paquets
 function get_packets($db, $filter_date, $filter_callsign, $limit) {
-    $sql = "SELECT id, datetime(timestamp, 'localtime') as timestamp, callsign, raw_packet, latitude, longitude 
+    $sql = "SELECT id, datetime(timestamp, 'localtime') as timestamp, callsign, raw_packet, decoded_info, latitude, longitude 
             FROM packets WHERE 1=1";
     $params = array();
     
@@ -58,7 +59,8 @@ function get_map_positions($db, $hours) {
                 latitude,
                 longitude,
                 datetime(MAX(timestamp), 'localtime') as last_seen,
-                COUNT(*) as packet_count
+                COUNT(*) as packet_count,
+                decoded_info
             FROM packets 
             WHERE latitude IS NOT NULL 
                 AND longitude IS NOT NULL
@@ -94,6 +96,12 @@ if ($tab === 'packets') {
     $map_data = array();
     $map_result = get_map_positions($db, $map_hours);
     while ($row = $map_result->fetchArray(SQLITE3_ASSOC)) {
+        // Icône APRS de la station (dernier paquet) et résumé pour la bulle
+        $d = $row['decoded_info'] ? (json_decode($row['decoded_info'], true) ?: []) : [];
+        $row['icon_html'] = aprs_symbol_html($d['table'] ?? '/', $d['code'] ?? '/', $d['emoji'] ?? '📍', $d['symbol_name'] ?? '');
+        $row['symbol_name'] = $d['symbol_name'] ?? '';
+        $row['comment'] = $d['comment'] ?? '';
+        unset($row['decoded_info']);
         $map_data[] = $row;
     }
 }
@@ -375,6 +383,30 @@ if ($tab === 'packets') {
             margin-left: 10px;
         }
         
+        .packet-callsign { text-decoration: none; }
+        .pk-emoji { font-size: 1.3em; margin-right: 4px; }
+        .pk-tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 600; margin-left: 6px; vertical-align: middle; }
+        .pk-type { background: #e8eaf6; color: #3949ab; }
+        .pk-direct { background: #e8f5e9; color: #2e7d32; }
+        .pk-via { background: #fff3e0; color: #e65100; }
+        .pk-lines { line-height: 1.7; color: #333; margin-bottom: 6px; }
+        .pk-muted { color: #888; font-size: 0.9em; }
+        .pk-msg { font-weight: 600; color: #4a148c; }
+        .pk-comment { font-style: italic; color: #444; }
+        .pk-maplink { color: #667eea; font-weight: 500; text-decoration: none; white-space: nowrap; }
+        .pk-raw summary { cursor: pointer; color: #888; font-size: 0.85em; }
+        .pk-raw .packet-raw { margin-top: 6px; }
+        .pk-weather { border-left-color: #29b6f6; }
+        .pk-message { border-left-color: #ab47bc; }
+        .pk-object { border-left-color: #ffa726; }
+        .pk-status { border-left-color: #90a4ae; }
+        .aprs-sym { display: inline-block; width: 24px; height: 24px; background-size: 384px 144px;
+                    background-repeat: no-repeat; vertical-align: middle; position: relative; margin-right: 4px; }
+        .aprs-sym i { position: absolute; inset: 0; background-image: url(/vendor/aprs-symbols/aprs-symbols-24-2@2x.png);
+                      background-size: 384px 144px; background-repeat: no-repeat; }
+        .station-icon .aprs-sym { margin: 0; filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
+        .station-emoji { font-size: 22px; line-height: 22px; text-align: center; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+
         .no-packets {
             text-align: center;
             padding: 40px;
@@ -534,21 +566,7 @@ if ($tab === 'packets') {
                         $packet_count = 0;
                         while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
                             $packet_count++;
-                            $has_position = ($row['latitude'] !== null && $row['longitude'] !== null);
-                            ?>
-                            <div class="packet-item">
-                                <div class="packet-header">
-                                    <span>
-                                        <span class="packet-callsign"><?php echo htmlspecialchars($row['callsign']); ?></span>
-                                        <?php if ($has_position): ?>
-                                            <span class="position-badge">📍 Position</span>
-                                        <?php endif; ?>
-                                    </span>
-                                    <span class="packet-time"><?php echo htmlspecialchars($row['timestamp']); ?></span>
-                                </div>
-                                <div class="packet-raw"><?php echo htmlspecialchars($row['raw_packet']); ?></div>
-                            </div>
-                            <?php
+                            echo aprs_packet_html($row, $S);
                         }
                         
                         if ($packet_count === 0) {
@@ -639,16 +657,24 @@ if ($tab === 'packets') {
                             popupAnchor: [0, -32]
                         });
                         
-                        // Ajouter les marqueurs
-                        var bounds = [];
+                        // Ajouter les marqueurs (icône APRS de chaque station)
+                        var bounds = [], markersByCall = {};
+                        var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) {
+                            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); };
                         stations.forEach(function(station) {
-                            var marker = L.marker([station.latitude, station.longitude], {icon: stationIcon}).addTo(map);
+                            var icon = station.icon_html ? L.divIcon({className: 'station-icon', html: station.icon_html,
+                                                                      iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]})
+                                                         : stationIcon;
+                            var marker = L.marker([station.latitude, station.longitude], {icon: icon, title: station.callsign}).addTo(map);
+                            markersByCall[station.callsign] = marker;
                             
                             var safeCall = String(station.callsign).replace(/[&<>"']/g, function (c) {
                                 return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
                             });
                             var popupContent = '<div style="font-family: Arial; min-width: 200px;">' +
-                                '<strong style="font-size: 1.2em; color: #667eea;">' + safeCall + '</strong><br>' +
+                                '<strong style="font-size: 1.2em; color: #667eea;">' + safeCall + '</strong>' +
+                                (station.symbol_name ? ' <span style="color:#666">· ' + esc(station.symbol_name) + '</span>' : '') + '<br>' +
+                                (station.comment ? '<em>' + esc(station.comment) + '</em><br>' : '') +
                                 '<hr style="margin: 8px 0;">' +
                                 '📍 <strong>Position:</strong><br>' +
                                 'Lat: ' + station.latitude.toFixed(4) + '°<br>' +
@@ -661,8 +687,20 @@ if ($tab === 'packets') {
                             bounds.push([station.latitude, station.longitude]);
                         });
                         
-                        // Ajuster la vue pour montrer tous les marqueurs
-                        if (bounds.length > 0) {
+                        // Lien « voir sur la carte » d'un paquet : centrer sur cette position
+                        var focus = <?php echo json_encode(isset($_GET['lat'], $_GET['lon']) && is_numeric($_GET['lat']) && is_numeric($_GET['lon'])
+                            ? ['lat' => (float)$_GET['lat'], 'lon' => (float)$_GET['lon'], 'label' => substr((string)($_GET['focus'] ?? ''), 0, 20)] : null); ?>;
+                        if (focus) {
+                            map.setView([focus.lat, focus.lon], 13);
+                            var m = markersByCall[focus.label];
+                            if (m && m.getLatLng().distanceTo([focus.lat, focus.lon]) < 50) {
+                                m.openPopup();
+                            } else {
+                                L.circleMarker([focus.lat, focus.lon], {radius: 9, color: '#e65100', weight: 3, fillOpacity: 0.2})
+                                    .addTo(map).bindPopup('<strong>' + esc(focus.label) + '</strong>').openPopup();
+                            }
+                        } else if (bounds.length > 0) {
+                            // Ajuster la vue pour montrer tous les marqueurs
                             map.fitBounds(bounds, {padding: [50, 50]});
                         }
                     </script>

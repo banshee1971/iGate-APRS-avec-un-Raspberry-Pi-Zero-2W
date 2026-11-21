@@ -259,17 +259,31 @@ if [ ! -f "$LEAFLET_DIR/leaflet.js" ]; then
         warn "Téléchargement de Leaflet impossible : la carte utilisera Internet (CDN)"
     fi
 fi
+# Symboles APRS d'aprs.fi (github.com/hessu/aprs-symbols, libres pour les
+# applications APRS avec mention de la source) : mêmes icônes que sur aprs.fi
+SYM_URL="https://raw.githubusercontent.com/hessu/aprs-symbols/master/png"
+SYM_DIR=/var/www/aprs/vendor/aprs-symbols
+if [ ! -f "$SYM_DIR/aprs-symbols-24-2@2x.png" ]; then
+    mkdir -p "$SYM_DIR"
+    for t in 0 1 2; do
+        curl -fsSL -o "$SYM_DIR/aprs-symbols-24-$t@2x.png" "$SYM_URL/aprs-symbols-24-$t@2x.png" || rm -f "$SYM_DIR/aprs-symbols-24-$t@2x.png"
+    done
+    if [ -f "$SYM_DIR/aprs-symbols-24-2@2x.png" ]; then ok "Symboles APRS installés"; else warn "Symboles APRS non téléchargés : des emojis seront utilisés"; fi
+fi
 chown -R "$IGATE_USER:www-data" /var/www/aprs/vendor 2>/dev/null || true
 
 # ---------------------------------------------------------------------
 step "6/9 Parser et scripts utilitaires"
 # ---------------------------------------------------------------------
 install -o "$IGATE_USER" -g "$IGATE_USER" -m 755 "$KIT_DIR/parser/parse_direwolf.py" "$IGATE_HOME/"
+install -o "$IGATE_USER" -g "$IGATE_USER" -m 644 "$KIT_DIR/parser/aprs_decode.py" "$IGATE_HOME/"
 for script in "$KIT_DIR"/scripts/*.sh; do
     install -o "$IGATE_USER" -g "$IGATE_USER" -m 755 "$script" "$IGATE_HOME/"
 done
 install -d -o "$IGATE_USER" -g "$IGATE_USER" -m 755 "$IGATE_HOME/backups" "$IGATE_HOME/direwolf_logs"
 ok "Scripts copiés dans $IGATE_HOME"
+# Mise à jour : relancer le parser s'il tourne déjà, pour charger le nouveau code
+systemctl try-restart aprs-parser.service 2>/dev/null || true
 
 # ---------------------------------------------------------------------
 step "7/9 Nginx"

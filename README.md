@@ -142,8 +142,13 @@ Vérifiez ensuite votre iGate sur `https://aprs.fi/#!call=a%2FVOTRE-INDICATIF-10
 
 ## L'interface web
 
-- **📦 Paquets** : tous les paquets reçus, filtrables par date et indicatif.
-  Les paquets avec position ont un badge « 📍 Position ».
+- **📦 Paquets** : tous les paquets reçus, filtrables par date et indicatif, **décodés en
+  clair** avec l'icône APRS de chaque station : position (avec distance et direction depuis
+  l'iGate, et lien vers la carte), vitesse, cap, altitude, météo (°C, km/h, hPa, mm),
+  messages et accusés de réception, objets (répéteurs…), statuts, télémétrie, type de radio
+  ou de logiciel, et « direct » ou « via » le digipeater qui l'a relayé. Les formats
+  compressés et Mic-E (radios Kenwood, Yaesu…) sont décodés. Le paquet brut reste
+  disponible d'un clic.
 - **🗺️ Carte** : carte OpenStreetMap des stations (dernière heure à 7 jours).
 - **📴 Mode Offline** : la même carte, mais uniquement avec les tuiles déjà en cache sur le Pi.
 
@@ -286,6 +291,13 @@ web/                       interface web (index, carte offline, /admin avec ses 
 templates/                 modèles : direwolf.conf, services systemd, nginx, cron, udev
 scripts/                   watchdog, backup, restauration, gain, tuiles
 ```
+
+## Crédits
+
+- Symboles APRS : jeu haute résolution d'aprs.fi par Heikki Hannikainen, OH7LZB
+  (<https://github.com/hessu/aprs-symbols>), téléchargé par `install.sh`.
+- Cartes : © les contributeurs d'[OpenStreetMap](https://www.openstreetmap.org/copyright).
+- [Dire Wolf](https://github.com/wb2osz/direwolf) par John Langner, WB2OSZ.
 
 ## Licence
 
