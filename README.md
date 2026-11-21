@@ -223,3 +223,11 @@ web/                       interface web (index, carte offline, /admin, lib/)
 templates/                 modèles : direwolf.conf, services systemd, nginx, cron, udev
 scripts/                   watchdog, backup, restauration, gain, tuiles
 ```
+
+## Licence
+
+Ce projet est distribué sous la licence **GNU GPL v3.0** (voir [LICENSE](LICENSE)).
+Vous pouvez l'utiliser, le modifier et le redistribuer librement, à condition que
+les versions modifiées que vous partagez restent elles aussi sous GPL v3.0, avec leur code source.
+
+73 ! — banshee1971
