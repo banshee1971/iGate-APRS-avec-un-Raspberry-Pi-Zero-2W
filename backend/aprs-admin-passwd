@@ -1,14 +1,20 @@
 #!/bin/bash
 # =====================================================================
 #  aprs-admin-passwd — crée ou change le compte de la page /admin
+#                      creates or changes the /admin page account
 # =====================================================================
 #  sudo aprs-admin-passwd                  demande le nom et le mot de passe
+#                                          asks for the username and password
 #  sudo aprs-admin-passwd --random FICHIER mot de passe aléatoire, écrit
 #                                          dans FICHIER (lisible par root seulement)
-#  Sans clavier (automatisation) : ADMIN_USER=... ADMIN_PASSWORD=... aprs-admin-passwd
+#                                          random password, written to FILE
+#                                          (readable by root only)
+#  Sans clavier / Unattended : ADMIN_USER=... ADMIN_PASSWORD=... aprs-admin-passwd
 #
 #  Le mot de passe est stocké chiffré (bcrypt) dans
 #  /var/lib/aprs-igate/admin-auth.json, lisible par le serveur web seulement.
+#  The password is stored hashed (bcrypt) in
+#  /var/lib/aprs-igate/admin-auth.json, readable by the web server only.
 # =====================================================================
 set -euo pipefail
 
@@ -17,16 +23,16 @@ MIN_LEN=8
 RANDOM_FILE=""
 
 case "${1:-}" in
-    --random) RANDOM_FILE="${2:?--random demande un nom de fichier}" ;;
-    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --random) RANDOM_FILE="${2:?--random demande un nom de fichier / --random needs a file name}" ;;
+    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     "") ;;
-    *) echo "Option inconnue : $1 (voir --help)"; exit 1 ;;
+    *) echo "Option inconnue / Unknown option : $1 (voir / see --help)"; exit 1 ;;
 esac
 
 if [ "$(id -u)" -ne 0 ]; then
     exec sudo "$0" "$@"
 fi
-command -v php >/dev/null || { echo "PHP est requis (sudo apt install php-cli)"; exit 1; }
+command -v php >/dev/null || { echo "PHP est requis / PHP is required (sudo apt install php-cli)"; exit 1; }
 
 CURRENT_USER="$(php -r '$a = @json_decode(@file_get_contents($argv[1]), true); echo $a["user"] ?? "";' "$AUTH" 2>/dev/null || true)"
 NEW_USER="${ADMIN_USER:-}"
@@ -39,32 +45,33 @@ if [ -n "$RANDOM_FILE" ]; then
     NEW_PASS="$(head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | cut -c1-14)"
 elif [ -z "$NEW_PASS" ]; then
     # Saisie au clavier, directement sur le terminal (jamais dans un journal)
-    exec 3<>/dev/tty || { echo "Pas de terminal : utilisez --random ou ADMIN_PASSWORD"; exit 1; }
+    exec 3<>/dev/tty || { echo "Pas de terminal / No terminal : utilisez / use --random ou / or ADMIN_PASSWORD"; exit 1; }
     DEFAULT_USER="${NEW_USER:-${CURRENT_USER:-admin}}"
     while true; do
-        printf "Nom d'utilisateur pour /admin [%s] : " "$DEFAULT_USER" >&3
+        printf "Nom d'utilisateur pour /admin / Username for /admin [%s] : " "$DEFAULT_USER" >&3
         read -r -u 3 NEW_USER
         NEW_USER="${NEW_USER:-$DEFAULT_USER}"
         valid_user "$NEW_USER" && break
         echo "  Lettres, chiffres, point, tiret ou souligné seulement (32 max)." >&3
+        echo "  Letters, digits, dot, hyphen or underscore only (32 max)." >&3
     done
     while true; do
-        printf "Mot de passe (%d caractères minimum) : " "$MIN_LEN" >&3
+        printf "Mot de passe / Password (%d caractères minimum / characters minimum) : " "$MIN_LEN" >&3
         read -r -s -u 3 NEW_PASS; echo >&3
         if [ "${#NEW_PASS}" -lt "$MIN_LEN" ]; then
-            echo "  Trop court." >&3; continue
+            echo "  Trop court / Too short." >&3; continue
         fi
-        printf "Confirmez le mot de passe : " >&3
+        printf "Confirmez le mot de passe / Confirm password : " >&3
         read -r -s -u 3 CONFIRM; echo >&3
         [ "$NEW_PASS" = "$CONFIRM" ] && break
-        echo "  Les deux mots de passe ne correspondent pas." >&3
+        echo "  Les deux mots de passe ne correspondent pas / Passwords do not match." >&3
     done
     exec 3>&-
 fi
 
 NEW_USER="${NEW_USER:-admin}"
-valid_user "$NEW_USER" || { echo "Nom d'utilisateur invalide : $NEW_USER"; exit 1; }
-[ "${#NEW_PASS}" -ge "$MIN_LEN" ] || { echo "Mot de passe trop court ($MIN_LEN caractères minimum)"; exit 1; }
+valid_user "$NEW_USER" || { echo "Nom d'utilisateur invalide / Invalid username : $NEW_USER"; exit 1; }
+[ "${#NEW_PASS}" -ge "$MIN_LEN" ] || { echo "Mot de passe trop court / Password too short ($MIN_LEN caractères minimum / characters minimum)"; exit 1; }
 
 install -d -o root -g www-data -m 2775 "$(dirname "$AUTH")"
 TMP="$(mktemp "$AUTH.XXXXXX")"
@@ -83,9 +90,11 @@ mv -f "$TMP" "$AUTH"
 
 if [ -n "$RANDOM_FILE" ]; then
     umask 077
-    printf 'Page /admin de l iGate APRS\nUtilisateur : %s\nMot de passe : %s\n' "$NEW_USER" "$NEW_PASS" > "$RANDOM_FILE"
+    printf 'Page /admin de l iGate APRS / APRS iGate /admin page\nUtilisateur / Username : %s\nMot de passe / Password : %s\n' "$NEW_USER" "$NEW_PASS" > "$RANDOM_FILE"
     chmod 600 "$RANDOM_FILE"
     echo "Compte /admin « $NEW_USER » créé ; mot de passe dans $RANDOM_FILE"
+    echo "/admin account \"$NEW_USER\" created; password in $RANDOM_FILE"
 else
     echo "Compte /admin « $NEW_USER » enregistré."
+    echo "/admin account \"$NEW_USER\" saved."
 fi

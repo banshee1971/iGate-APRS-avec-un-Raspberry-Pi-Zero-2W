@@ -1,24 +1,32 @@
 #!/bin/bash
 # =====================================================================
 #  Kit de déploiement - iGate APRS sur Raspberry Pi Zero 2W + RTL-SDR
+#  Deployment kit - APRS iGate on Raspberry Pi Zero 2W + RTL-SDR
 # =====================================================================
-#  Installation (sur le Pi, en SSH) :
+#  Installation (sur le Pi, en SSH / on the Pi, over SSH) :
 #     git clone https://github.com/banshee1971/iGate-APRS-avec-un-Raspberry-Pi-Zero-2W.git
 #     cd iGate-APRS-avec-un-Raspberry-Pi-Zero-2W
 #     sudo ./install.sh
 #  Le script demande d'abord le nom d'utilisateur et le mot de passe de la
 #  page /admin, puis ouvrez  http://<adresse-du-pi>/admin  pour tout configurer.
+#  The script first asks for the /admin page username and password, then
+#  open  http://<pi-address>/admin  to configure everything.
 #
 #  Mise à jour du kit (vos réglages sont conservés) :
+#  Updating the kit (your settings are kept):
 #     git pull && sudo ./install.sh --skip-upgrade
 #
 #  Options :
 #     --skip-upgrade       ne pas faire « apt upgrade » (plus rapide)
+#                          skip "apt upgrade" (faster)
 #     --rebuild-direwolf   recompiler Direwolf même s'il est déjà installé
+#                          rebuild Direwolf even if already installed
 #     --reset-admin        redemander le compte de la page /admin
-#     --help               afficher cette aide
-#  Sans clavier : sudo ADMIN_USER=admin ADMIN_PASSWORD=... ./install.sh
+#                          ask again for the /admin page account
+#     --help               afficher cette aide / show this help
+#  Sans clavier / Unattended : sudo ADMIN_USER=admin ADMIN_PASSWORD=... ./install.sh
 #  (sinon un mot de passe aléatoire est écrit dans /root/aprs-admin-password.txt)
+#  (otherwise a random password is written to /root/aprs-admin-password.txt)
 # =====================================================================
 set -euo pipefail
 
@@ -36,13 +44,13 @@ for arg in "$@"; do
         --skip-upgrade) SKIP_UPGRADE=yes ;;
         --rebuild-direwolf) REBUILD_DIREWOLF=yes ;;
         --reset-admin) RESET_ADMIN=yes ;;
-        -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-        *) echo "Option inconnue : $arg (voir --help)"; exit 1 ;;
+        -h|--help) sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *) echo "Option inconnue / Unknown option : $arg (voir / see --help)"; exit 1 ;;
     esac
 done
 
 if [ "$(id -u)" -ne 0 ]; then
-    echo "Lancez ce script avec sudo :  sudo ./install.sh"
+    echo "Lancez ce script avec sudo / Run this script with sudo :  sudo ./install.sh"
     exit 1
 fi
 
@@ -68,26 +76,28 @@ if [ ! -s "$AUTH_FILE" ] || [ "$RESET_ADMIN" = yes ]; then
     elif { exec 3<>/dev/tty; } 2>/dev/null; then
         ADMIN_MODE=env
         echo
-        echo "=== Compte de la page de configuration /admin ==="
+        echo "=== Compte de la page de configuration /admin / Configuration page account ==="
         while true; do
-            printf "Nom d'utilisateur [admin] : " >&3
+            printf "Nom d'utilisateur admin / Admin username [admin] : " >&3
             read -r -u 3 ADMIN_USER
             ADMIN_USER="${ADMIN_USER:-admin}"
             [[ "$ADMIN_USER" =~ ^[A-Za-z0-9._-]{1,32}$ ]] && break
             echo "  Lettres, chiffres, point, tiret ou souligné seulement." >&3
+            echo "  Letters, digits, dot, hyphen or underscore only." >&3
         done
         while true; do
-            printf "Mot de passe (8 caractères minimum) : " >&3
+            printf "Mot de passe / Password (8 caractères minimum / 8 characters minimum) : " >&3
             read -r -s -u 3 ADMIN_PASSWORD; echo >&3
-            if [ "${#ADMIN_PASSWORD}" -lt 8 ]; then echo "  Trop court." >&3; continue; fi
-            printf "Confirmez le mot de passe : " >&3
+            if [ "${#ADMIN_PASSWORD}" -lt 8 ]; then echo "  Trop court / Too short." >&3; continue; fi
+            printf "Confirmez le mot de passe / Confirm password : " >&3
             read -r -s -u 3 ADMIN_CONFIRM; echo >&3
             [ "$ADMIN_PASSWORD" = "$ADMIN_CONFIRM" ] && break
-            echo "  Les deux mots de passe ne correspondent pas." >&3
+            echo "  Les deux mots de passe ne correspondent pas / Passwords do not match." >&3
         done
         unset ADMIN_CONFIRM
         exec 3>&-
         echo "Merci ! L'installation peut maintenant se faire sans vous."
+        echo "Thanks! The installation can now continue without you."
     else
         ADMIN_MODE=random
     fi
@@ -220,8 +230,8 @@ step "5/9 Interface web et base de données"
 install -d -o "$IGATE_USER" -g www-data -m 755 /var/www/aprs
 cp -r "$KIT_DIR"/web/. /var/www/aprs/
 chown -R "$IGATE_USER:www-data" /var/www/aprs/index.php /var/www/aprs/map-offline.php \
-    /var/www/aprs/admin /var/www/aprs/lib
-find /var/www/aprs/admin /var/www/aprs/lib -type d -exec chmod 755 {} +
+    /var/www/aprs/admin /var/www/aprs/lib /var/www/aprs/lang
+find /var/www/aprs/admin /var/www/aprs/lib /var/www/aprs/lang -type d -exec chmod 755 {} +
 find /var/www/aprs -maxdepth 3 -name '*.php' -exec chmod 644 {} +
 chmod 644 /var/www/aprs/lib/settings.schema.json
 
@@ -337,26 +347,32 @@ done
 IPS="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -v ':' | grep -v '^$' || true)"
 echo
 echo "======================================================"
-echo " ✅ Installation terminée !"
+echo " ✅ Installation terminée ! / Installation complete!"
 echo
 echo " Ouvrez la page de configuration dans votre navigateur :"
+echo " Open the configuration page in your browser:"
 for ip in $IPS; do
     echo "     http://$ip/admin"
 done
 echo "     http://$(hostname)/admin"
 echo
 if [ "$ADMIN_MODE" = random ]; then
-    echo " Identifiants : sudo cat $RANDOM_PW_FILE"
+    echo " Identifiants / Credentials : sudo cat $RANDOM_PW_FILE"
     echo " (changez-les dans /admin -> Compte, ou avec : sudo aprs-admin-passwd)"
+    echo " (change them in /admin -> Account, or with: sudo aprs-admin-passwd)"
 else
     echo " Connectez-vous avec le compte choisi au début de l'installation"
     echo " (oublié ? sudo aprs-admin-passwd)."
+    echo " Log in with the account chosen at the start of the installation"
+    echo " (forgotten? sudo aprs-admin-passwd)."
 fi
 echo
 echo " Entrez votre indicatif et votre position, puis cliquez sur"
 echo " « Enregistrer et appliquer » : l'iGate démarrera tout seul."
+echo " Enter your callsign and position, then click"
+echo " \"Save and apply\": the iGate will start on its own."
 if [ "$REBOOT_NEEDED" = yes ]; then
     echo
-    echo " ⚠️  Redémarrez le Pi d'abord :  sudo reboot"
+    echo " ⚠️  Redémarrez le Pi d'abord / Reboot the Pi first :  sudo reboot"
 fi
 echo "======================================================"

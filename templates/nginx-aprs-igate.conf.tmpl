@@ -28,7 +28,7 @@ server {
         deny all;
     }
     # Code et réglages internes de l'interface (inclus par PHP, jamais servis)
-    location ^~ /lib/ {
+    location ~ ^/(lib|lang)/ {
         deny all;
     }
 

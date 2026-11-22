@@ -4,7 +4,7 @@
 require __DIR__ . '/../lib/admin.php';
 aprs_require_login();
 
-aprs_admin_header('📊 Système', 'system', ['body_class' => 'btop']);
+aprs_admin_header(t('📊 Système'), 'system', ['body_class' => 'btop']);
 ?>
     <div class="bt-grid">
         <div class="bt-box bt-cpu wide">
@@ -12,40 +12,40 @@ aprs_admin_header('📊 Système', 'system', ['body_class' => 'btop']);
             <span class="bt-right" id="cpu-info">…</span>
             <canvas class="bt-graph" id="cpu-graph"></canvas>
             <div id="cpu-cores"></div>
-            <div class="bt-kv" style="margin-top: 8px;"><span>charge moyenne (1, 5, 15 min)</span><span id="cpu-load">–</span></div>
-            <div class="bt-kv"><span>en marche depuis</span><span id="cpu-uptime">–</span></div>
-            <div class="bt-kv"><span>alimentation</span><span id="cpu-power">–</span></div>
+            <div class="bt-kv" style="margin-top: 8px;"><span><?php echo th('charge moyenne (1, 5, 15 min)'); ?></span><span id="cpu-load">–</span></div>
+            <div class="bt-kv"><span><?php echo th('en marche depuis'); ?></span><span id="cpu-uptime">–</span></div>
+            <div class="bt-kv"><span><?php echo th('alimentation'); ?></span><span id="cpu-power">–</span></div>
         </div>
 
         <div class="bt-box bt-mem">
-            <span class="bt-title">²<b>mémoire</b></span>
+            <span class="bt-title">²<b><?php echo th('mémoire'); ?></b></span>
             <span class="bt-right" id="mem-total">…</span>
             <div id="mem-rows"></div>
         </div>
 
         <div class="bt-box bt-disk">
-            <span class="bt-title">³<b>disques</b></span>
+            <span class="bt-title">³<b><?php echo th('disques'); ?></b></span>
             <div id="disk-rows"></div>
         </div>
 
         <div class="bt-box bt-net">
-            <span class="bt-title">⁴<b>réseau</b></span>
+            <span class="bt-title">⁴<b><?php echo th('réseau'); ?></b></span>
             <span class="bt-right" id="net-iface">…</span>
             <canvas class="bt-graph" id="net-graph" style="height: 80px;"></canvas>
             <div id="net-rows"></div>
         </div>
 
         <div class="bt-box bt-proc wide">
-            <span class="bt-title">⁵<b>processus</b></span>
+            <span class="bt-title">⁵<b><?php echo th('processus'); ?></b></span>
             <span class="bt-right" id="proc-count">…</span>
             <table class="bt-ps">
                 <colgroup><col style="width:70px"><col><col style="width:110px"><col style="width:70px"><col style="width:90px"><col style="width:70px"></colgroup>
-                <thead><tr><th class="n">pid</th><th>programme</th><th>utilisateur</th><th class="n">cpu%</th><th class="n">mém</th><th class="n">mém%</th></tr></thead>
+                <thead><tr><th class="n">pid</th><th><?php echo th('programme'); ?></th><th><?php echo th('utilisateur'); ?></th><th class="n">cpu%</th><th class="n"><?php echo th('mém'); ?></th><th class="n"><?php echo th('mém%'); ?></th></tr></thead>
                 <tbody id="proc-rows"></tbody>
             </table>
         </div>
     </div>
-    <p class="muted" id="bt-status" style="margin-top: 12px; color: #7f8a99;">Chargement…</p>
+    <p class="muted" id="bt-status" style="margin-top: 12px; color: #7f8a99;"><?php echo th('Chargement…'); ?></p>
 
 <script>
 (function () {
@@ -56,14 +56,14 @@ aprs_admin_header('📊 Système', 'system', ['body_class' => 'btop']);
 
     function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function bytes(n) {
-        var u = ['o', 'Ko', 'Mo', 'Go', 'To'], i = 0;
+        var u = [t('o'), t('Ko'), t('Mo'), t('Go'), t('To')], i = 0;
         while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
         return (n >= 100 || i === 0 ? n.toFixed(0) : n.toFixed(1)) + ' ' + u[i];
     }
     function rate(n) { return bytes(n) + '/s'; }
     function dur(s) {
         var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
-        return (d ? d + ' j ' : '') + (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+        return (d ? d + ' ' + t('j') + ' ' : '') + (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
     }
     function heat(p) { return p >= 85 ? 'bt-hot' : (p >= 60 ? 'bt-warm' : ''); }
     function meter(kind, pct) {
@@ -132,14 +132,14 @@ aprs_admin_header('📊 Système', 'system', ['body_class' => 'btop']);
         $('cpu-info').innerHTML = info.join(' · ') || '…';
         $('cpu-cores').innerHTML = cores.map(function (c) {
             return row(c.name.replace('cpu', 'C'), 'cpu', c.pct, c.pct.toFixed(0) + '%');
-        }).join('') || '<div class="bt-sub">mesure en cours…</div>';
+        }).join('') || '<div class="bt-sub">' + esc(t('mesure en cours…')) + '</div>';
         $('cpu-load').textContent = d.load.map(function (x) { return x.toFixed(2); }).join('  ');
         $('cpu-uptime').textContent = dur(d.uptime);
-        var t = d.throttled;
-        if (!t) $('cpu-power').textContent = 'inconnue';
-        else if (t.undervolt_now) $('cpu-power').innerHTML = '<span class="bt-hot">⚡ SOUS-TENSION en ce moment</span>';
-        else if (t.throttled_now) $('cpu-power').innerHTML = '<span class="bt-hot">ralenti (chaleur ou tension)</span>';
-        else if (t.undervolt_since_boot) $('cpu-power').innerHTML = '<span class="bt-warm">sous-tension depuis le démarrage</span>';
+        var thr = d.throttled;
+        if (!thr) $('cpu-power').textContent = t('inconnue');
+        else if (thr.undervolt_now) $('cpu-power').innerHTML = '<span class="bt-hot">⚡ ' + esc(t('SOUS-TENSION en ce moment')) + '</span>';
+        else if (thr.throttled_now) $('cpu-power').innerHTML = '<span class="bt-hot">' + esc(t('ralenti (chaleur ou tension)')) + '</span>';
+        else if (thr.undervolt_since_boot) $('cpu-power').innerHTML = '<span class="bt-warm">' + esc(t('sous-tension depuis le démarrage')) + '</span>';
         else $('cpu-power').textContent = 'OK';
 
         // ---------------- Mémoire (kio)
@@ -147,10 +147,10 @@ aprs_admin_header('📊 Système', 'system', ['body_class' => 'btop']);
         var used = m.total - m.available;
         $('mem-total').textContent = bytes(m.total * K);
         var rows = [
-            row('utilisée', 'mem', 100 * used / m.total, bytes(used * K)),
-            row('dispo', 'mem', 100 * m.available / m.total, bytes(m.available * K)),
-            row('cache', 'mem', 100 * m.cached / m.total, bytes(m.cached * K)),
-            row('libre', 'mem', 100 * m.free / m.total, bytes(m.free * K))
+            row(t('utilisée'), 'mem', 100 * used / m.total, bytes(used * K)),
+            row(t('dispo'), 'mem', 100 * m.available / m.total, bytes(m.available * K)),
+            row(t('cache'), 'mem', 100 * m.cached / m.total, bytes(m.cached * K)),
+            row(t('libre'), 'mem', 100 * m.free / m.total, bytes(m.free * K))
         ];
         if (m.swap_total > 0) {
             var su = m.swap_total - m.swap_free;
@@ -163,9 +163,9 @@ aprs_admin_header('📊 Système', 'system', ['body_class' => 'btop']);
         $('disk-rows').innerHTML = d.disks.map(function (k) {
             var pct = 100 * k.used / k.total;
             return '<div class="bt-sub">' + esc(k.mount) + ' <span style="color:#56606e">(' + esc(k.dev) + ', ' + esc(k.fs) + ')</span></div>' +
-                   row('utilisé', 'disk', pct, pct.toFixed(0) + '%', bytes(k.used) + ' sur ' + bytes(k.total)) +
-                   '<div class="bt-kv"><span>' + bytes(k.used) + ' utilisés</span><span>' + bytes(k.free) + ' libres / ' + bytes(k.total) + '</span></div>';
-        }).join('') || '<div class="bt-sub">aucun disque</div>';
+                   row(t('utilisé'), 'disk', pct, pct.toFixed(0) + '%', t('%s sur %s', bytes(k.used), bytes(k.total))) +
+                   '<div class="bt-kv"><span>' + esc(t('%s utilisés', bytes(k.used))) + '</span><span>' + esc(t('%s libres / %s', bytes(k.free), bytes(k.total))) + '</span></div>';
+        }).join('') || '<div class="bt-sub">' + esc(t('aucun disque')) + '</div>';
 
         // ---------------- Réseau (interface la plus active)
         var netRows = [], rxTot = 0, txTot = 0, busiest = null;
@@ -193,7 +193,7 @@ aprs_admin_header('📊 Système', 'system', ['body_class' => 'btop']);
             return {pid: p.pid, name: p.name, user: p.user, cpu: Math.max(0, cpu), rss: p.rss};
         }).filter(function (p) { return p.rss > 0; });
         list.sort(function (a, b) { return b.cpu - a.cpu || b.rss - a.rss; });
-        $('proc-count').textContent = d.procs.length + ' processus · ' + ncpu + ' cœurs';
+        $('proc-count').textContent = t('%s processus · %s cœurs', d.procs.length, ncpu);
         $('proc-rows').innerHTML = list.slice(0, 14).map(function (p) {
             var mp = 100 * p.rss / m.total;
             var watch = /^(direwolf|rtl_fm|python3|nginx|php-fpm)/.test(p.name) ? ' style="color:#e5c07b"' : '';
@@ -202,8 +202,8 @@ aprs_admin_header('📊 Système', 'system', ['body_class' => 'btop']);
                    '</td><td class="n">' + mp.toFixed(1) + '</td></tr>';
         }).join('');
 
-        $('bt-status').textContent = 'Mise à jour toutes les 2 secondes · ' + new Date().toLocaleTimeString('fr-CA', {hour12: false}) +
-            ' · cpu% d\'un processus : 100 = un cœur complet';
+        $('bt-status').textContent = t('Mise à jour toutes les 2 secondes') + ' · ' + new Date().toLocaleTimeString(window.APRS_LANG === 'en' ? 'en-CA' : 'fr-CA', {hour12: false}) +
+            ' · ' + t('cpu% d\'un processus : 100 = un cœur complet');
         prev = d;
     }
 
@@ -214,7 +214,7 @@ aprs_admin_header('📊 Système', 'system', ['body_class' => 'btop']);
         fetch('api.php?what=metrics', {credentials: 'same-origin'})
             .then(function (r) { if (r.status === 401) { location.reload(); throw 0; } return r.json(); })
             .then(render)
-            .catch(function (e) { if (e) $('bt-status').innerHTML = '<span class="bt-err">Erreur de lecture des mesures</span>'; })
+            .catch(function (e) { if (e) $('bt-status').innerHTML = '<span class="bt-err">' + esc(t('Erreur de lecture des mesures')) + '</span>'; })
             .then(function () { busy = false; });
     }
     load();

@@ -46,29 +46,29 @@ function aprs_validate(array $raw) {
                 break;
             case 'int':
                 if (!is_numeric($val) || intval($val) != $val) {
-                    $err = 'doit être un nombre entier';
+                    $err = t('doit être un nombre entier');
                 } else {
                     $val = intval($val);
                     if ($val < $f['min'] || $val > $f['max']) {
-                        $err = "doit être entre {$f['min']} et {$f['max']}";
+                        $err = t('doit être entre %s et %s', $f['min'], $f['max']);
                     }
                 }
                 break;
             case 'float':
                 $val = str_replace(',', '.', (string)$val);
                 if (!is_numeric($val)) {
-                    $err = 'doit être un nombre';
+                    $err = t('doit être un nombre');
                 } else {
                     $val = round(floatval($val), $f['decimals'] ?? 4);
                     if ($val < $f['min'] || $val > $f['max']) {
-                        $err = "doit être entre {$f['min']} et {$f['max']}";
+                        $err = t('doit être entre %s et %s', $f['min'], $f['max']);
                     }
                 }
                 break;
             case 'choice':
                 $val = (string)$val;
                 if (!in_array($val, array_column($f['choices'], 'value'), true)) {
-                    $err = 'choix invalide';
+                    $err = t('choix invalide');
                 }
                 break;
             default: // text
@@ -78,7 +78,7 @@ function aprs_validate(array $raw) {
                 }
                 if (!preg_match('~' . str_replace('~', '\~', $f['pattern']) . '~u', $val)
                     || preg_match('~[\x00-\x1f"\'`$\\\\;|&<>]~', $val)) {
-                    $err = 'format invalide';
+                    $err = t('format invalide');
                 }
         }
         if ($err !== null) {
@@ -168,3 +168,6 @@ function aprs_leaflet_tags() {
 function h($s) {
     return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 }
+
+// Traduction (t(), th()) disponible partout où les réglages sont chargés
+require_once __DIR__ . '/i18n.php';

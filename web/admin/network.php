@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'activate' && $p) {
         $payload = $id . (!empty($_POST['no_confirm']) ? ' --no-confirm' : '');
         net_redirect(aprs_queue_action('network', $payload)
-            ? "Activation du profil « {$p['name']} » demandée."
+            ? t('Activation du profil « %s » demandée.', aprs_net_name($p))
             : 'Impossible de déposer la demande.');
     } elseif ($op === 'confirm' && $pending) {
         @file_put_contents(APRS_NET_CONFIRM, $pending['token']);
@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($op === 'delete' && $p && empty($p['builtin']) && $id !== $active) {
         $data['profiles'] = array_values(array_filter($data['profiles'], function ($x) use ($id) { return $x['id'] !== $id; }));
         if ($data['fallback'] === $id) $data['fallback'] = '';
-        net_redirect(aprs_net_save($data) ? "Profil « {$p['name']} » supprimé." : 'Écriture impossible.');
+        net_redirect(aprs_net_save($data) ? t('Profil « %s » supprimé.', aprs_net_name($p)) : 'Écriture impossible.');
     } elseif ($op === 'fallback') {
         $fb = (string)($_POST['fallback'] ?? '');
         $data['fallback'] = ($fb === '' || aprs_net_find($data, $fb)) ? $fb : '';
@@ -58,9 +58,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($x['id'] === $id) $data['profiles'][$i] = $form;
                 }
             }
-            $msg = "Profil « {$form['name']} » enregistré.";
-            if ($id === $active) $msg .= ' Cliquez sur « Activer » pour appliquer les changements.';
-            net_redirect(aprs_net_save($data) ? $msg : 'Écriture impossible (' . APRS_NET_PROFILES . ').');
+            $msg = t('Profil « %s » enregistré.', $form['name']);
+            if ($id === $active) $msg .= ' ' . t('Cliquez sur « Activer » pour appliquer les changements.');
+            net_redirect(aprs_net_save($data) ? $msg : t('Écriture impossible (%s).', APRS_NET_PROFILES));
         }
         $edit_id = $is_new ? '' : $id;
     }
@@ -78,34 +78,33 @@ foreach (@scandir(APRS_QUEUE_DIR) ?: [] as $f) {
     if (preg_match('/-network(-confirm)?$/', $f)) $queued = true;
 }
 
-aprs_admin_header('🌐 Réseau', 'network', ['refresh' => $queued ? 4 : 0]);
-if ($flash) echo '<div class="flash">' . h($flash) . '</div>';
+aprs_admin_header('🌐 ' . t('Réseau'), 'network', ['refresh' => $queued ? 4 : 0]);
+if ($flash) echo '<div class="flash">' . h(t($flash)) . '</div>';
 ?>
     <?php if ($pending): ?>
         <div class="warn net-pending">
             <div>
-                <strong>⏳ Nouvelle configuration réseau active : « <?php echo h(aprs_net_find($data, $pending['new'])['name'] ?? $pending['new']); ?> »</strong><br>
-                Si vous voyez cette page, la connexion fonctionne : gardez-la. Sans confirmation, le Pi reviendra
-                au profil « <?php echo h(aprs_net_find($data, $pending['previous'])['name'] ?? $pending['previous']); ?> »
-                dans <strong id="net-countdown" data-deadline="<?php echo intval($pending['deadline']); ?>">…</strong>.
+                <strong>⏳ <?php echo th('Nouvelle configuration réseau active : « %s »', aprs_net_label($data, $pending['new'])); ?></strong><br>
+                <?php echo th('Si vous voyez cette page, la connexion fonctionne : gardez-la. Sans confirmation, le Pi reviendra au profil « %s » dans', aprs_net_label($data, $pending['previous'])); ?>
+                <strong id="net-countdown" data-deadline="<?php echo intval($pending['deadline']); ?>">…</strong>.
             </div>
             <form method="POST"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="confirm">
-                <button class="btn btn-ok">✅ Garder cette configuration</button></form>
+                <button class="btn btn-ok">✅ <?php echo th('Garder cette configuration'); ?></button></form>
         </div>
     <?php endif; ?>
     <?php if ($queued): ?>
-        <div class="flash">⏳ Changement de réseau en cours… Si la page ne revient pas, reconnectez-vous au nouveau réseau
-            puis ouvrez <strong>http://<?php echo h(gethostname()); ?>.local/admin</strong> (ou <strong>http://10.42.0.1/admin</strong> pour une borne Wi-Fi).</div>
+        <div class="flash">⏳ <?php echo th('Changement de réseau en cours… Si la page ne revient pas, reconnectez-vous au nouveau réseau puis ouvrez'); ?>
+            <strong>http://<?php echo h(gethostname()); ?>.local/admin</strong> <?php echo sprintf(h(t('(ou %s pour une borne Wi-Fi).')), '<strong>http://10.42.0.1/admin</strong>'); ?></div>
     <?php endif; ?>
 
     <!-- État actuel -->
     <div class="card">
-        <h2>📶 État actuel</h2>
+        <h2>📶 <?php echo th('État actuel'); ?></h2>
         <?php if (!$devices): ?>
-            <p class="muted">Impossible de lire l'état réseau (NetworkManager absent ?).</p>
+            <p class="muted"><?php echo th('Impossible de lire l\'état réseau (NetworkManager absent ?).'); ?></p>
         <?php else: ?>
             <table class="simple">
-                <tr><th>Carte</th><th>Type</th><th>État</th><th>Connexion</th><th>Adresse IP</th></tr>
+                <tr><th><?php echo th('Carte'); ?></th><th><?php echo th('Type'); ?></th><th><?php echo th('État'); ?></th><th><?php echo th('Connexion réseau'); ?></th><th><?php echo th('Adresse IP'); ?></th></tr>
                 <?php foreach ($devices as $d): ?>
                     <tr>
                         <td><strong><?php echo h($d['device']); ?></strong></td>
@@ -117,34 +116,34 @@ if ($flash) echo '<div class="flash">' . h($flash) . '</div>';
                 <?php endforeach; ?>
             </table>
         <?php endif; ?>
-        <p class="muted" style="margin-top: 10px;">Profil actif : <strong><?php echo h(aprs_net_find($data, $active)['name'] ?? $active); ?></strong>
-            <?php if (!empty($state['applied'])): ?>(depuis le <?php echo h($state['applied']); ?>)<?php endif; ?>
-            · Nom du Pi sur le réseau : <strong><?php echo h(gethostname()); ?>.local</strong></p>
+        <p class="muted" style="margin-top: 10px;"><?php echo th('Profil actif :'); ?> <strong><?php echo h(aprs_net_label($data, $active)); ?></strong>
+            <?php if (!empty($state['applied'])): ?><?php echo th('(depuis le %s)', $state['applied']); ?><?php endif; ?>
+            · <?php echo th('Nom du Pi sur le réseau :'); ?> <strong><?php echo h(gethostname()); ?>.local</strong></p>
     </div>
 
     <!-- Profils -->
     <div class="card">
-        <h2>🗂️ Profils enregistrés</h2>
+        <h2>🗂️ <?php echo th('Profils enregistrés'); ?></h2>
         <div class="net-profiles">
             <?php foreach ($data['profiles'] as $p): $is_active = $p['id'] === $active; ?>
                 <div class="net-profile <?php echo $is_active ? 'active' : ''; ?>">
                     <div class="net-head">
-                        <strong><?php echo h($p['name']); ?></strong>
-                        <?php if ($is_active): ?><span class="pill ok">actif</span><?php endif; ?>
-                        <?php if ($data['fallback'] === $p['id']): ?><span class="pill mid">secours</span><?php endif; ?>
+                        <strong><?php echo h(aprs_net_name($p)); ?></strong>
+                        <?php if ($is_active): ?><span class="pill ok"><?php echo th('actif'); ?></span><?php endif; ?>
+                        <?php if ($data['fallback'] === $p['id']): ?><span class="pill mid"><?php echo th('secours'); ?></span><?php endif; ?>
                     </div>
                     <div class="muted"><?php echo h(aprs_net_summary($p)); ?></div>
                     <div class="actions" style="margin-top: 10px;">
-                        <form method="POST" onsubmit="return netConfirm(this, <?php echo h(json_encode($p['name'])); ?>, <?php echo $p['wifi']['mode'] === 'ap' ? 'true' : 'false'; ?>);">
+                        <form method="POST" onsubmit="return netConfirm(this, <?php echo h(json_encode(aprs_net_name($p))); ?>, <?php echo $p['wifi']['mode'] === 'ap' ? 'true' : 'false'; ?>);">
                             <?php echo aprs_csrf_field(); ?>
                             <input type="hidden" name="op" value="activate"><input type="hidden" name="id" value="<?php echo h($p['id']); ?>">
                             <input type="hidden" name="no_confirm" value="">
-                            <button class="btn btn-small"><?php echo $is_active ? '🔄 Réappliquer' : '▶ Activer'; ?></button>
+                            <button class="btn btn-small"><?php echo $is_active ? '🔄 ' . th('Réappliquer') : '▶ ' . th('Activer'); ?></button>
                         </form>
                         <?php if (empty($p['builtin'])): ?>
-                            <a class="btn btn-small btn-secondary" href="network.php?edit=<?php echo h(urlencode($p['id'])); ?>#form">✏️ Modifier</a>
+                            <a class="btn btn-small btn-secondary" href="network.php?edit=<?php echo h(urlencode($p['id'])); ?>#form">✏️ <?php echo th('Modifier'); ?></a>
                             <?php if (!$is_active): ?>
-                                <form method="POST" onsubmit="return confirm('Supprimer ce profil ?');">
+                                <form method="POST" onsubmit="return confirm(<?php echo h(json_encode(t('Supprimer ce profil ?'))); ?>);">
                                     <?php echo aprs_csrf_field(); ?>
                                     <input type="hidden" name="op" value="delete"><input type="hidden" name="id" value="<?php echo h($p['id']); ?>">
                                     <button class="btn btn-small btn-danger">🗑️</button>
@@ -155,10 +154,9 @@ if ($flash) echo '<div class="flash">' . h($flash) . '</div>';
                 </div>
             <?php endforeach; ?>
         </div>
-        <p style="margin-top: 15px;"><a class="btn" href="network.php?new=1#form">➕ Nouveau profil</a></p>
+        <p style="margin-top: 15px;"><a class="btn" href="network.php?new=1#form">➕ <?php echo th('Nouveau profil'); ?></a></p>
         <p class="muted" style="margin-top: 10px;">
-            « Origine » remet le réseau comme à l'installation : Ethernet en DHCP et le Wi-Fi entré dans Raspberry Pi Imager.
-            Il ne peut être ni modifié ni supprimé.
+            <?php echo th('« Origine » remet le réseau comme à l\'installation : Ethernet en DHCP et le Wi-Fi entré dans Raspberry Pi Imager. Il ne peut être ni modifié ni supprimé.'); ?>
         </p>
     </div>
 
@@ -168,8 +166,8 @@ if ($flash) echo '<div class="flash">' . h($flash) . '</div>';
         <?php echo aprs_csrf_field(); ?>
         <input type="hidden" name="op" value="save">
         <input type="hidden" name="id" value="<?php echo h($form['id']); ?>">
-        <h2><?php echo $form['id'] === '' ? '➕ Nouveau profil' : '✏️ Modifier « ' . h($form['name']) . ' »'; ?></h2>
-        <?php if ($errors): ?><div class="error-box">Corrigez les champs en rouge.</div><?php endif; ?>
+        <h2><?php echo $form['id'] === '' ? '➕ ' . th('Nouveau profil') : '✏️ ' . th('Modifier « %s »', $form['name']); ?></h2>
+        <?php if ($errors): ?><div class="error-box"><?php echo th('Corrigez les champs en rouge.'); ?></div><?php endif; ?>
         <?php
         $fld = function ($name, $label, $value, $type = 'text', $help = '', $ph = '') use ($errors) {
             echo '<div class="field' . (isset($errors[$name]) ? ' has-error' : '') . '"><label for="' . $name . '">' . h($label) . '</label>'
@@ -183,51 +181,49 @@ if ($flash) echo '<div class="flash">' . h($flash) . '</div>';
             foreach ($opts as $v => $l) echo '<option value="' . h($v) . '"' . ((string)$value === (string)$v ? ' selected' : '') . '>' . h($l) . '</option>';
             echo '</select></div>';
         };
-        $keep = ' (vide = garder le mot de passe actuel)';
+        $keep = ' ' . t('(vide = garder le mot de passe actuel)');
         ?>
-        <div class="fields"><?php $fld('name', 'Nom du profil', $form['name'], 'text', '', 'Ex. : Club radio'); ?></div>
+        <div class="fields"><?php $fld('name', t('Nom du profil'), $form['name'], 'text', '', t('Ex. : Club radio')); ?></div>
 
-        <h3 class="net-h3">🔌 Ethernet (carte intégrée ou adaptateur USB)</h3>
+        <h3 class="net-h3">🔌 <?php echo th('Ethernet (carte intégrée ou adaptateur USB)'); ?></h3>
         <div class="fields">
-            <?php $sel('eth_mode', 'Adressage', $e['mode'], ['dhcp' => 'Automatique (DHCP)', 'static' => 'Adresse fixe', 'off' => 'Désactivé']); ?>
+            <?php $sel('eth_mode', t('Adressage'), $e['mode'], ['dhcp' => t('Automatique (DHCP)'), 'static' => t('Adresse fixe'), 'off' => t('Désactivé')]); ?>
         </div>
         <div class="fields net-sub" data-show="eth_mode=static">
-            <?php $fld('eth_address', 'Adresse IP / masque', $e['address'] ?? '', 'text', 'Format CIDR : /24 = 255.255.255.0', '192.168.1.50/24');
-                  $fld('eth_gateway', 'Passerelle (routeur)', $e['gateway'] ?? '', 'text', '', '192.168.1.1');
-                  $fld('eth_dns', 'Serveurs DNS', $e['dns'] ?? '', 'text', 'Séparés par des espaces', '1.1.1.1 8.8.8.8'); ?>
+            <?php $fld('eth_address', t('Adresse IP / masque'), $e['address'] ?? '', 'text', t('Format CIDR : /24 = 255.255.255.0'), '192.168.1.50/24');
+                  $fld('eth_gateway', t('Passerelle (routeur)'), $e['gateway'] ?? '', 'text', '', '192.168.1.1');
+                  $fld('eth_dns', t('Serveurs DNS'), $e['dns'] ?? '', 'text', t('Séparés par des espaces'), '1.1.1.1 8.8.8.8'); ?>
         </div>
 
         <h3 class="net-h3">📶 Wi-Fi</h3>
         <div class="fields">
-            <?php $sel('wifi_mode', 'Mode', $w['mode'], ['existing' => 'Réseau configuré à l\'installation', 'client' => 'Se connecter à un autre réseau',
-                                                          'ap' => 'Borne Wi-Fi (le Pi crée son propre réseau)', 'off' => 'Désactivé']); ?>
+            <?php $sel('wifi_mode', t('Mode'), $w['mode'], ['existing' => t('Réseau configuré à l\'installation'), 'client' => t('Se connecter à un autre réseau'),
+                                                          'ap' => t('Borne Wi-Fi (le Pi crée son propre réseau)'), 'off' => t('Désactivé')]); ?>
             <?php if (isset($errors['wifi_mode'])): ?><div class="err">⚠️ <?php echo h($errors['wifi_mode']); ?></div><?php endif; ?>
         </div>
         <div class="fields net-sub" data-show="wifi_mode=client">
-            <?php $fld('wifi_ssid', 'Nom du réseau (SSID)', $w['mode'] === 'client' ? ($w['ssid'] ?? '') : '');
-                  $fld('wifi_password', 'Mot de passe', '', 'password', '8 à 63 caractères ; vide = réseau ouvert' . (($form['id'] !== '' && $w['mode'] === 'client') ? $keep : ''));
-                  $sel('wifi_ip', 'Adressage', $w['ip'] ?? 'dhcp', ['dhcp' => 'Automatique (DHCP)', 'static' => 'Adresse fixe']); ?>
+            <?php $fld('wifi_ssid', t('Nom du réseau (SSID)'), $w['mode'] === 'client' ? ($w['ssid'] ?? '') : '');
+                  $fld('wifi_password', t('Mot de passe'), '', 'password', t('8 à 63 caractères ; vide = réseau ouvert') . (($form['id'] !== '' && $w['mode'] === 'client') ? $keep : ''));
+                  $sel('wifi_ip', t('Adressage'), $w['ip'] ?? 'dhcp', ['dhcp' => t('Automatique (DHCP)'), 'static' => t('Adresse fixe')]); ?>
         </div>
         <div class="fields net-sub" data-show="wifi_mode=client&wifi_ip=static">
-            <?php $fld('wifi_address', 'Adresse IP / masque', $w['address'] ?? '', 'text', '', '192.168.1.51/24');
-                  $fld('wifi_gateway', 'Passerelle', $w['gateway'] ?? '', 'text', '', '192.168.1.1');
-                  $fld('wifi_dns', 'Serveurs DNS', $w['dns'] ?? '', 'text', '', '1.1.1.1'); ?>
+            <?php $fld('wifi_address', t('Adresse IP / masque'), $w['address'] ?? '', 'text', '', '192.168.1.51/24');
+                  $fld('wifi_gateway', t('Passerelle'), $w['gateway'] ?? '', 'text', '', '192.168.1.1');
+                  $fld('wifi_dns', t('Serveurs DNS'), $w['dns'] ?? '', 'text', '', '1.1.1.1'); ?>
         </div>
         <div class="fields net-sub" data-show="wifi_mode=ap">
-            <?php $fld('ap_ssid', 'Nom de la borne (SSID)', $w['mode'] === 'ap' ? ($w['ssid'] ?? '') : '', 'text', 'Le nom que verront les téléphones et portables.');
-                  $fld('ap_password', 'Mot de passe de la borne', '', 'password', '8 à 63 caractères (obligatoire)' . (($form['id'] !== '' && $w['mode'] === 'ap') ? $keep : ''));
-                  $sel('ap_channel', 'Canal', $w['channel'] ?? 6, [1 => 'Canal 1', 6 => 'Canal 6', 11 => 'Canal 11']); ?>
+            <?php $fld('ap_ssid', t('Nom de la borne (SSID)'), $w['mode'] === 'ap' ? ($w['ssid'] ?? '') : '', 'text', t('Le nom que verront les téléphones et portables.'));
+                  $fld('ap_password', t('Mot de passe de la borne'), '', 'password', t('8 à 63 caractères (obligatoire)') . (($form['id'] !== '' && $w['mode'] === 'ap') ? $keep : ''));
+                  $sel('ap_channel', t('Canal'), $w['channel'] ?? 6, [1 => t('Canal %d', 1), 6 => t('Canal %d', 6), 11 => t('Canal %d', 11)]); ?>
             <div class="help" style="grid-column: 1 / -1;">
-                Connectez-vous à la borne puis ouvrez <strong>http://10.42.0.1</strong>. Si un câble Ethernet relié à Internet est branché,
-                les appareils connectés à la borne ont aussi Internet. Sans câble, l'iGate reçoit et affiche les paquets localement
-                (carte en mode Offline), mais ne peut pas les envoyer à aprs.fi.
+                <?php echo sprintf(h(t('Connectez-vous à la borne puis ouvrez %s. Si un câble Ethernet relié à Internet est branché, les appareils connectés à la borne ont aussi Internet. Sans câble, l\'iGate reçoit et affiche les paquets localement (carte en mode Offline), mais ne peut pas les envoyer à aprs.fi.')), '<strong>http://10.42.0.1</strong>'); ?>
             </div>
         </div>
         <p style="margin-top: 20px;">
-            <button class="btn">💾 Enregistrer le profil</button>
-            <a class="btn btn-secondary" href="network.php">Annuler</a>
+            <button class="btn">💾 <?php echo th('Enregistrer le profil'); ?></button>
+            <a class="btn btn-secondary" href="network.php"><?php echo th('Annuler'); ?></a>
         </p>
-        <p class="muted" style="margin-top: 8px;">Enregistrer ne change rien tout de suite : cliquez ensuite sur « Activer ».</p>
+        <p class="muted" style="margin-top: 8px;"><?php echo th('Enregistrer ne change rien tout de suite : cliquez ensuite sur « Activer ».'); ?></p>
     </form>
     <?php endif; ?>
 
@@ -235,29 +231,28 @@ if ($flash) echo '<div class="flash">' . h($flash) . '</div>';
     <form method="POST" class="card">
         <?php echo aprs_csrf_field(); ?>
         <input type="hidden" name="op" value="fallback">
-        <h2>🛟 Profil de secours</h2>
-        <p style="margin-bottom: 12px;">Si le Pi n'est connecté à <strong>aucun</strong> réseau 3 minutes après le démarrage
-            (par exemple : vous êtes au club et le Wi-Fi de la maison n'est pas là), il active ce profil.
-            Choisissez une <strong>borne Wi-Fi</strong> pour toujours pouvoir le rejoindre.</p>
+        <h2>🛟 <?php echo th('Profil de secours'); ?></h2>
+        <p style="margin-bottom: 12px;"><?php echo sprintf(h(t('Si le Pi n\'est connecté à %s réseau 3 minutes après le démarrage (par exemple : vous êtes au club et le Wi-Fi de la maison n\'est pas là), il active ce profil. Choisissez une %s pour toujours pouvoir le rejoindre.')),
+                '<strong>' . th('aucun') . '</strong>', '<strong>' . th('borne Wi-Fi') . '</strong>'); ?></p>
         <div class="fields">
             <div class="field">
                 <select name="fallback">
-                    <option value="">Aucun</option>
+                    <option value=""><?php echo th('Aucun'); ?></option>
                     <?php foreach ($data['profiles'] as $p): ?>
-                        <option value="<?php echo h($p['id']); ?>" <?php echo $data['fallback'] === $p['id'] ? 'selected' : ''; ?>><?php echo h($p['name']); ?></option>
+                        <option value="<?php echo h($p['id']); ?>" <?php echo $data['fallback'] === $p['id'] ? 'selected' : ''; ?>><?php echo h(aprs_net_name($p)); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div><button class="btn btn-secondary">Enregistrer</button></div>
+            <div><button class="btn btn-secondary"><?php echo th('Enregistrer'); ?></button></div>
         </div>
     </form>
 
 <script>
 function netConfirm(form, name, isAp) {
-    var msg = 'Activer le profil « ' + name + ' » ?\n\nLa connexion à cette page peut être coupée.';
-    msg += isAp ? '\nConnectez-vous ensuite à la borne Wi-Fi et ouvrez http://10.42.0.1/admin.'
-                : '\nReconnectez-vous ensuite au même réseau que le Pi.';
-    msg += '\n\nVous aurez 5 minutes pour confirmer depuis le nouveau réseau, sinon le Pi reviendra tout seul à la configuration actuelle.';
+    var msg = t('Activer le profil « %s » ?', name) + '\n\n' + t('La connexion à cette page peut être coupée.');
+    msg += '\n' + (isAp ? t('Connectez-vous ensuite à la borne Wi-Fi et ouvrez %s.', 'http://10.42.0.1/admin')
+                        : t('Reconnectez-vous ensuite au même réseau que le Pi.'));
+    msg += '\n\n' + t('Vous aurez 5 minutes pour confirmer depuis le nouveau réseau, sinon le Pi reviendra tout seul à la configuration actuelle.');
     return confirm(msg);
 }
 (function () {

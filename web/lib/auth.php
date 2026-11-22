@@ -149,6 +149,6 @@ function aprs_csrf_check() {
     }
     if (!hash_equals(aprs_csrf_token(), (string)($_POST['csrf'] ?? ''))) {
         http_response_code(400);
-        exit('Formulaire expiré : rechargez la page et recommencez.');
+        exit(t('Formulaire expiré : rechargez la page et recommencez.'));
     }
 }

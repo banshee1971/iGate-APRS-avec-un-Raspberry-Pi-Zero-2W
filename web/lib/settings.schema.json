@@ -309,6 +309,27 @@
       "title": "🖥️ Affichage de la page web",
       "fields": [
         {
+          "key": "ui_lang",
+          "label": "Langue de l'interface",
+          "type": "choice",
+          "default": "auto",
+          "choices": [
+            {
+              "value": "auto",
+              "label": "Automatique (langue du navigateur)"
+            },
+            {
+              "value": "fr",
+              "label": "Français"
+            },
+            {
+              "value": "en",
+              "label": "English"
+            }
+          ],
+          "help": "Langue par défaut. Chaque visiteur peut changer avec le sélecteur FR | EN en haut de la page."
+        },
+        {
           "key": "web_title",
           "label": "Titre de la page",
           "type": "text",

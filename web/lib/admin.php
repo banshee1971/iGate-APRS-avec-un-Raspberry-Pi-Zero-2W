@@ -15,39 +15,44 @@ const APRS_ADMIN_TABS = [
 
 function aprs_admin_header($title, $active, array $opts = []) {
     $s = aprs_load_settings();
+    aprs_lang();   // avant toute sortie : ?lang=xx doit pouvoir poser son cookie
     ?>
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="<?php echo aprs_lang(); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <?php if (!empty($opts['refresh'])): ?><meta http-equiv="refresh" content="<?php echo intval($opts['refresh']); ?>"><?php endif; ?>
     <title><?php echo h($title); ?> - <?php echo h(aprs_title($s)); ?></title>
+    <?php echo aprs_i18n_js(); ?>
     <?php if (!empty($opts['leaflet'])) echo aprs_leaflet_tags(); ?>
-    <link rel="stylesheet" href="/admin/admin.css?v=5">
+    <link rel="stylesheet" href="/admin/admin.css?v=6">
 </head>
 <body class="<?php echo h($opts['body_class'] ?? ''); ?>">
 <div class="container">
     <div class="card topbar">
         <div>
             <h1><?php echo h($title); ?></h1>
-            <div class="subtitle"><?php echo h(aprs_station($s)); ?> · <a href="/">← Retour à l'interface</a></div>
+            <div class="subtitle"><?php echo h(aprs_station($s)); ?> · <a href="/"><?php echo th('← Retour à l\'interface'); ?></a></div>
         </div>
-        <?php if (!empty($_SESSION['aprs_user'])): ?>
-        <form method="POST" action="logout.php" class="logout">
-            <?php echo aprs_csrf_field(); ?>
-            <span class="muted">👤 <?php echo h($_SESSION['aprs_user']); ?></span>
-            <button class="btn btn-small btn-secondary">🚪 Déconnexion</button>
-        </form>
-        <?php endif; ?>
+        <div class="topbar-right">
+            <?php echo aprs_lang_switch(); ?>
+            <?php if (!empty($_SESSION['aprs_user'])): ?>
+            <form method="POST" action="logout.php" class="logout">
+                <?php echo aprs_csrf_field(); ?>
+                <span class="muted">👤 <?php echo h($_SESSION['aprs_user']); ?></span>
+                <button class="btn btn-small btn-secondary"><?php echo th('🚪 Déconnexion'); ?></button>
+            </form>
+            <?php endif; ?>
+        </div>
     </div>
     <nav class="tabs">
         <?php foreach (APRS_ADMIN_TABS as $id => [$href, $label]): ?>
-            <a href="<?php echo h($href); ?>" class="<?php echo $id === $active ? 'active' : ''; ?>"><?php echo h($label); ?></a>
+            <a href="<?php echo h($href); ?>" class="<?php echo $id === $active ? 'active' : ''; ?>"><?php echo h(t($label)); ?></a>
         <?php endforeach; ?>
         <?php if ($pisugar = aprs_pisugar()): ?>
             <a href="<?php echo h($pisugar['url']); ?>" target="_blank" rel="noopener" class="ext"
-               title="Interface du PiSugar (batterie)">🔋 PiSugar<?php
+               title="<?php echo th('Interface du PiSugar (batterie)'); ?>">🔋 PiSugar<?php
                 if ($pisugar['battery'] !== null) echo ' ' . h(round($pisugar['battery'])) . ' %';
                 if ($pisugar['charging']) echo ' ⚡'; ?> ↗</a>
         <?php endif; ?>
@@ -61,10 +66,10 @@ function aprs_admin_footer() {
 
 function aprs_flash_box($flash, array $errors = []) {
     if ($flash) {
-        echo '<div class="flash">' . h($flash) . '</div>';
+        echo '<div class="flash">' . h(t((string)$flash)) . '</div>';
     }
     if ($errors) {
-        echo '<div class="error-box"><strong>Les réglages n\'ont pas été enregistrés.</strong> Corrigez les champs en rouge.';
+        echo '<div class="error-box"><strong>' . th('Les réglages n\'ont pas été enregistrés.') . '</strong> ' . th('Corrigez les champs en rouge.');
         if (isset($errors['_'])) echo '<br>' . h($errors['_']);
         echo '</div>';
     }
@@ -96,7 +101,7 @@ function aprs_handle_save(array $sections, $redirect) {
             header('Location: ' . $redirect . '?msg=' . urlencode('Réglages enregistrés. Application en cours...'));
             exit;
         }
-        $errors['_'] = "Impossible d'écrire dans " . APRS_STATE_DIR . ' (droits ?).';
+        $errors['_'] = t('Impossible d\'écrire dans %s (droits ?).', APRS_STATE_DIR);
     }
     return [$raw, $errors];  // réafficher ce que l'usager a tapé
 }
@@ -104,7 +109,7 @@ function aprs_handle_save(array $sections, $redirect) {
 function aprs_render_sections(array $sections, array $settings, array $errors, array $after = []) {
     foreach ($sections as $section): ?>
         <div class="card">
-            <h2><?php echo h($section['title']); ?></h2>
+            <h2><?php echo h(t($section['title'])); ?></h2>
             <div class="fields">
             <?php foreach ($section['fields'] as $f):
                 $key = $f['key'];
@@ -113,28 +118,28 @@ function aprs_render_sections(array $sections, array $settings, array $errors, a
                 $cls = 'field' . ($f['type'] === 'bool' ? ' check' : '') . ($err ? ' has-error' : ''); ?>
                 <div class="<?php echo $cls; ?>">
                     <?php if ($f['type'] === 'bool'): ?>
-                        <label><input type="checkbox" id="f_<?php echo h($key); ?>" name="<?php echo h($key); ?>" <?php echo $val ? 'checked' : ''; ?>> <?php echo h($f['label']); ?></label>
+                        <label><input type="checkbox" id="f_<?php echo h($key); ?>" name="<?php echo h($key); ?>" <?php echo $val ? 'checked' : ''; ?>> <?php echo h(t($f['label'])); ?></label>
                     <?php else: ?>
-                        <label for="f_<?php echo h($key); ?>"><?php echo h($f['label']); ?></label>
+                        <label for="f_<?php echo h($key); ?>"><?php echo h(t($f['label'])); ?></label>
                         <?php if (($f['widget'] ?? '') === 'ssid'): ?>
                             <div class="ssid-pick">
                                 <span class="ssid-icon" id="ssid-icon"><?php echo APRS_SSIDS[max(0, min(15, (int)$val))][0]; ?></span>
                                 <select id="f_<?php echo h($key); ?>" name="<?php echo h($key); ?>">
                                     <?php foreach (APRS_SSIDS as $n => [$icon, $short, $long]): ?>
-                                        <option value="<?php echo $n; ?>" data-icon="<?php echo h($icon); ?>" data-desc="<?php echo h($long); ?>"
-                                            <?php echo (int)$val === $n ? 'selected' : ''; ?>><?php echo h($icon . '  -' . $n . ' : ' . $short); ?></option>
+                                        <option value="<?php echo $n; ?>" data-icon="<?php echo h($icon); ?>" data-desc="<?php echo h(t($long)); ?>"
+                                            <?php echo (int)$val === $n ? 'selected' : ''; ?>><?php echo h($icon . '  -' . $n . ' : ' . t($short)); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <div class="help" id="ssid-desc"><?php echo h(APRS_SSIDS[max(0, min(15, (int)$val))][2]); ?></div>
+                            <div class="help" id="ssid-desc"><?php echo h(t(APRS_SSIDS[max(0, min(15, (int)$val))][2])); ?></div>
                         <?php elseif (($f['widget'] ?? '') === 'passcode'):
                             $pc = aprs_is_configured($settings) ? aprs_passcode($settings['callsign']) : ''; ?>
                             <input type="text" id="f_<?php echo h($key); ?>" value="<?php echo h($pc); ?>" readonly
-                                   class="readonly-code" placeholder="Entrez votre indicatif">
+                                   class="readonly-code" placeholder="<?php echo th('Entrez votre indicatif'); ?>">
                         <?php elseif ($f['type'] === 'choice'): ?>
                             <select id="f_<?php echo h($key); ?>" name="<?php echo h($key); ?>">
                                 <?php foreach ($f['choices'] as $c): ?>
-                                    <option value="<?php echo h($c['value']); ?>" <?php echo (string)$val === (string)$c['value'] ? 'selected' : ''; ?>><?php echo h($c['label']); ?></option>
+                                    <option value="<?php echo h($c['value']); ?>" <?php echo (string)$val === (string)$c['value'] ? 'selected' : ''; ?>><?php echo h(t($c['label'])); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         <?php elseif ($f['type'] === 'int' || $f['type'] === 'float'): ?>
@@ -143,12 +148,12 @@ function aprs_render_sections(array $sections, array $settings, array $errors, a
                                    step="<?php echo $f['type'] === 'int' ? '1' : h(pow(10, -($f['decimals'] ?? 4))); ?>">
                         <?php else: ?>
                             <input type="text" id="f_<?php echo h($key); ?>" name="<?php echo h($key); ?>"
-                                   value="<?php echo h($val); ?>" placeholder="<?php echo h($f['placeholder'] ?? ''); ?>">
+                                   value="<?php echo h($val); ?>" placeholder="<?php echo h(isset($f['placeholder']) ? t($f['placeholder']) : ''); ?>">
                         <?php endif; ?>
                     <?php endif; ?>
                     <?php if ($err): ?><div class="err">⚠️ <?php echo h($err); ?></div><?php endif; ?>
                     <?php if (!empty($f['help']) && ($f['widget'] ?? '') !== 'ssid'): ?>
-                        <div class="help"><?php echo h($f['help']); ?></div>
+                        <div class="help"><?php echo h(t($f['help'])); ?></div>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
@@ -278,7 +283,7 @@ function aprs_sdr_devices() {
         if (!$rtl && !array_key_exists($id, APRS_OTHER_SDR_IDS)) continue;
         $man = $rd("$dir/manufacturer");
         $prod = $rd("$dir/product");
-        $model = $rtl ? APRS_RTL_IDS[$id] : APRS_OTHER_SDR_IDS[$id];
+        $model = t($rtl ? APRS_RTL_IDS[$id] : APRS_OTHER_SDR_IDS[$id]);
         if (stripos($man, 'RTLSDRBlog') !== false || stripos($prod, 'Blog V') !== false) {
             $model = 'RTL-SDR Blog ' . trim(preg_replace('/^Blog\s*/i', '', $prod));
         } elseif (stripos($man . $prod, 'NooElec') !== false) {
@@ -291,7 +296,7 @@ function aprs_sdr_devices() {
             $driver = basename((string)@readlink($drv));
         }
         $found[] = [
-            'id' => $id, 'chipset' => $rtl ? 'Realtek RTL2832U' : 'non RTL',
+            'id' => $id, 'chipset' => $rtl ? 'Realtek RTL2832U' : t('non RTL'),
             'model' => $model, 'manufacturer' => $man, 'product' => $prod,
             'serial' => $rd("$dir/serial"), 'speed' => $rd("$dir/speed"),
             'supported' => $rtl, 'driver' => $driver, 'port' => basename($dir),
@@ -315,5 +320,5 @@ function aprs_dongle_label() {
     foreach ($devs as $d) {
         if ($d['supported']) return [true, $d['model']];
     }
-    return $devs ? [false, $devs[0]['model'] . ' (non supporté)'] : [false, 'absent'];
+    return $devs ? [false, t('%s (non supporté)', $devs[0]['model'])] : [false, t('absent')];
 }

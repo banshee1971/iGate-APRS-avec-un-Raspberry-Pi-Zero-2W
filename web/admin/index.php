@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'gain-test'  => 'Test des gains demandé (environ 6 minutes).',
             'reboot'     => 'Redémarrage du Pi demandé. La page reviendra dans 1 à 2 minutes.',
         ];
-        $msg = aprs_queue_action($op) ? $labels[$op] : "Impossible de déposer la demande.";
+        $msg = aprs_queue_action($op) ? $labels[$op] : 'Impossible de déposer la demande.';
         header('Location: ./?msg=' . urlencode($msg));
         exit;
     }
@@ -35,10 +35,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ---------------------------------------------------------------- État
 $services = [
-    'aprs-igate.service'  => 'iGate (rtl_fm + Direwolf)',
-    'aprs-parser.service' => 'Parser (base de données)',
-    'nginx.service'       => 'Serveur web',
-    'aprs-admin.path'     => 'Application des réglages',
+    'aprs-igate.service'  => t('iGate (rtl_fm + Direwolf)'),
+    'aprs-parser.service' => t('Parser (base de données)'),
+    'nginx.service'       => t('Serveur web'),
+    'aprs-admin.path'     => t('Application des réglages'),
 ];
 function tile_cache_mb() {
     if (!is_dir(APRS_TILE_DIR)) return null;
@@ -64,39 +64,41 @@ if (is_readable(APRS_DB_PATH)) {
 }
 $station = aprs_station($settings);
 
-aprs_admin_header("⚙️ Configuration de l'iGate", 'config', ['leaflet' => true, 'refresh' => $pending > 0 ? 3 : 0]);
+aprs_admin_header(t('⚙️ Configuration de l\'iGate'), 'config', ['leaflet' => true, 'refresh' => $pending > 0 ? 3 : 0]);
 aprs_flash_box($flash, $errors);
 ?>
     <?php if (!aprs_is_configured($settings)): ?>
-        <div class="warn"><strong>👋 Bienvenue !</strong> 1) Entrez votre <strong>indicatif d'appel</strong> dans l'onglet <a class="back" href="reporting.php">📡 Reporting aprs.fi</a> ; 2) placez l'iGate sur la carte ci-dessous et cliquez sur « Enregistrer et appliquer ». L'iGate démarrera automatiquement. Les réglages radio et de décodage sont dans l'onglet <a class="back" href="direwolf.php">🐺 Direwolf</a>.</div>
+        <div class="warn"><strong><?php echo th('👋 Bienvenue !'); ?></strong> <?php echo t('1) Entrez votre <strong>indicatif d\'appel</strong> dans l\'onglet %s ; 2) placez l\'iGate sur la carte ci-dessous et cliquez sur « Enregistrer et appliquer ». L\'iGate démarrera automatiquement. Les réglages radio et de décodage sont dans l\'onglet %s.',
+            '<a class="back" href="reporting.php">' . th('📡 Reporting aprs.fi') . '</a>',
+            '<a class="back" href="direwolf.php">' . th('🐺 Direwolf') . '</a>'); ?></div>
     <?php endif; ?>
 
     <!-- État du système -->
     <div class="card">
-        <h2>🩺 État du système</h2>
+        <h2><?php echo th('🩺 État du système'); ?></h2>
         <div class="status-grid">
             <?php foreach ($services as $unit => $label):
                 ?>
                 <div class="status-item"><span><?php echo h($label); ?></span><?php echo aprs_svc_pill(aprs_svc_state($unit)); ?></div>
             <?php endforeach; ?>
-            <div class="status-item"><span>Dongle SDR</span>
+            <div class="status-item"><span><?php echo th('Dongle SDR'); ?></span>
                 <?php if ($dongle === null): ?><span class="pill unk">?</span>
                 <?php else: [$dongle_ok, $dongle_name] = aprs_dongle_label(); ?>
-                    <span class="pill <?php echo $dongle_ok ? 'ok' : 'bad'; ?>" title="Détails : onglet Direwolf"><?php echo h($dongle_name); ?></span>
+                    <span class="pill <?php echo $dongle_ok ? 'ok' : 'bad'; ?>" title="<?php echo th('Détails : onglet Direwolf'); ?>"><?php echo h($dongle_name); ?></span>
                 <?php endif; ?>
             </div>
-            <div class="status-item"><span>Cache des tuiles</span><span class="pill unk"><?php echo $tile_mb === null ? '?' : $tile_mb . ' / ' . intval($settings['tile_cache_max_mb']) . ' Mo'; ?></span></div>
-            <div class="status-item"><span>Paquets aujourd'hui</span><span class="pill unk"><?php echo $today === null ? '?' : number_format($today); ?></span></div>
+            <div class="status-item"><span><?php echo th('Cache des tuiles'); ?></span><span class="pill unk"><?php echo $tile_mb === null ? '?' : h(t('%d / %d Mo', $tile_mb, intval($settings['tile_cache_max_mb']))); ?></span></div>
+            <div class="status-item"><span><?php echo th('Paquets aujourd\'hui'); ?></span><span class="pill unk"><?php echo $today === null ? '?' : number_format($today); ?></span></div>
         </div>
         <p class="muted" style="margin-top: 12px;">
             <?php if ($pending > 0): ?>
-                ⏳ <?php echo $pending; ?> demande(s) en cours de traitement... (la page se rafraîchit toute seule)
+                ⏳ <?php echo th('%d demande(s) en cours de traitement... (la page se rafraîchit toute seule)', $pending); ?>
             <?php elseif ($status): ?>
-                Dernière action (<?php echo h($status['time']); ?>) :
-                <?php echo $status['ok'] ? '✅' : '❌'; ?> <?php echo h($status['message']); ?>
+                <?php echo th('Dernière action (%s) :', $status['time']); ?>
+                <?php echo $status['ok'] ? '✅' : '❌'; ?> <?php echo h(t_msg($status['message'])); ?>
             <?php endif; ?>
             <?php if (aprs_is_configured($settings)): ?>
-                · <a class="back" href="https://aprs.fi/#!call=a%2F<?php echo urlencode($station); ?>" target="_blank" rel="noopener">Voir <?php echo h($station); ?> sur aprs.fi ↗</a>
+                · <a class="back" href="https://aprs.fi/#!call=a%2F<?php echo urlencode($station); ?>" target="_blank" rel="noopener"><?php echo th('Voir %s sur aprs.fi ↗', $station); ?></a>
             <?php endif; ?>
         </p>
     </div>
@@ -106,35 +108,35 @@ aprs_flash_box($flash, $errors);
         <?php echo aprs_csrf_field(); ?>
         <input type="hidden" name="op" value="save">
         <?php aprs_render_sections($sections, $settings, $errors, [
-            'position' => '<div id="pickmap"></div><div class="help muted" style="margin-top: 5px;">Cliquez sur la carte pour placer l’iGate (nécessite Internet ou des tuiles en cache).</div>',
+            'position' => '<div id="pickmap"></div><div class="help muted" style="margin-top: 5px;">' . th('Cliquez sur la carte pour placer l’iGate (nécessite Internet ou des tuiles en cache).') . '</div>',
         ]); ?>
 
         <div class="save-bar">
-            <button type="submit" class="btn">💾 Enregistrer et appliquer</button>
-            <span class="muted">Direwolf, les services et les tâches planifiées seront régénérés et redémarrés au besoin.</span>
+            <button type="submit" class="btn"><?php echo th('💾 Enregistrer et appliquer'); ?></button>
+            <span class="muted"><?php echo th('Direwolf, les services et les tâches planifiées seront régénérés et redémarrés au besoin.'); ?></span>
         </div>
     </form>
 
     <!-- Actions -->
     <div class="card" style="margin-top: 20px;">
-        <h2>🧰 Actions</h2>
+        <h2><?php echo th('🧰 Actions'); ?></h2>
         <div class="actions">
-            <form method="POST" action="./"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="restart"><button class="btn btn-secondary">🔄 Redémarrer les services</button></form>
-            <form method="POST" action="./"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="backup"><button class="btn btn-secondary">💾 Sauvegarder maintenant</button></form>
-            <form method="POST" action="./"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="usb-backup"><button class="btn btn-secondary">🔌 Copier les sauvegardes sur clé USB</button></form>
-            <form method="POST" action="./"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="tiles"><button class="btn btn-secondary">🗺️ Pré-télécharger les tuiles autour de l'iGate</button></form>
-            <form method="POST" action="./" onsubmit="return confirm('Effacer toutes les tuiles gardées sur le Pi ? La carte Offline sera vide.');"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="clear-tiles"><button class="btn btn-secondary">🧹 Vider le cache des tuiles</button></form>
-            <form method="POST" action="./" onsubmit="return confirm('Redémarrer le Raspberry Pi ?');"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="reboot"><button class="btn btn-danger">⏻ Redémarrer le Pi</button></form>
+            <form method="POST" action="./"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="restart"><button class="btn btn-secondary"><?php echo th('🔄 Redémarrer les services'); ?></button></form>
+            <form method="POST" action="./"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="backup"><button class="btn btn-secondary"><?php echo th('💾 Sauvegarder maintenant'); ?></button></form>
+            <form method="POST" action="./"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="usb-backup"><button class="btn btn-secondary"><?php echo th('🔌 Copier les sauvegardes sur clé USB'); ?></button></form>
+            <form method="POST" action="./"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="tiles"><button class="btn btn-secondary"><?php echo th('🗺️ Pré-télécharger les tuiles autour de l\'iGate'); ?></button></form>
+            <form method="POST" action="./" onsubmit="return confirm(t('Effacer toutes les tuiles gardées sur le Pi ? La carte Offline sera vide.'));"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="clear-tiles"><button class="btn btn-secondary"><?php echo th('🧹 Vider le cache des tuiles'); ?></button></form>
+            <form method="POST" action="./" onsubmit="return confirm(t('Redémarrer le Raspberry Pi ?'));"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="reboot"><button class="btn btn-danger"><?php echo th('⏻ Redémarrer le Pi'); ?></button></form>
         </div>
     </div>
 
     <!-- Journal -->
     <div class="card">
-        <h2>📜 Journal des dernières actions</h2>
+        <h2><?php echo th('📜 Journal des dernières actions'); ?></h2>
         <?php if ($log): ?>
             <pre class="log"><?php echo h(implode('', $log)); ?></pre>
         <?php else: ?>
-            <p class="muted">Aucune action pour l'instant.</p>
+            <p class="muted"><?php echo th('Aucune action pour l\'instant.'); ?></p>
         <?php endif; ?>
     </div>
 

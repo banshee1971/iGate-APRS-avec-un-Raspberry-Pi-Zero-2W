@@ -3,6 +3,7 @@
 require __DIR__ . '/lib/settings.php';
 require __DIR__ . '/lib/packets.php';
 $S = aprs_load_settings();
+aprs_lang();   // choisit la langue (et pose le cookie ?lang=) avant toute sortie
 $db_path = APRS_DB_PATH;
 $db = new SQLite3($db_path);
 
@@ -98,8 +99,8 @@ if ($tab === 'packets') {
     while ($row = $map_result->fetchArray(SQLITE3_ASSOC)) {
         // Icône APRS de la station (dernier paquet) et résumé pour la bulle
         $d = $row['decoded_info'] ? (json_decode($row['decoded_info'], true) ?: []) : [];
-        $row['icon_html'] = aprs_symbol_html($d['table'] ?? '/', $d['code'] ?? '/', $d['emoji'] ?? '📍', $d['symbol_name'] ?? '');
-        $row['symbol_name'] = $d['symbol_name'] ?? '';
+        $row['symbol_name'] = aprs_tr_symbol($d['symbol_name'] ?? '');
+        $row['icon_html'] = aprs_symbol_html($d['table'] ?? '/', $d['code'] ?? '/', $d['emoji'] ?? '📍', $row['symbol_name']);
         $row['comment'] = $d['comment'] ?? '';
         unset($row['decoded_info']);
         $map_data[] = $row;
@@ -107,12 +108,13 @@ if ($tab === 'packets') {
 }
 ?>
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="<?php echo h(aprs_lang()); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo h(aprs_title($S)); ?></title>
     <?php echo aprs_leaflet_tags(); ?>
+    <?php echo aprs_i18n_js(); ?>
     <style>
         * {
             margin: 0;
@@ -158,6 +160,27 @@ if ($tab === 'packets') {
             text-decoration: none;
             font-weight: 500;
             white-space: nowrap;
+        }
+
+        .header-links {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            white-space: nowrap;
+        }
+
+        .lang-switch {
+            font-size: 0.85em;
+            color: #888;
+        }
+
+        .lang-switch a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .lang-switch a:hover {
+            text-decoration: underline;
         }
 
         .setup-banner {
@@ -475,45 +498,48 @@ if ($tab === 'packets') {
         <div class="header">
             <div class="header-top">
                 <h1>📡 <?php echo h(aprs_title($S)); ?></h1>
-                <a href="/admin/" class="admin-link">⚙️ Configuration</a>
+                <div class="header-links">
+                    <?php echo aprs_lang_switch(); ?>
+                    <a href="/admin/" class="admin-link">⚙️ <?php echo th('Configuration'); ?></a>
+                </div>
             </div>
-            <div class="subtitle"><?php echo h($S['web_subtitle']); ?></div>
+            <div class="subtitle"><?php echo h(t($S['web_subtitle'])); ?></div>
         </div>
 
         <?php if (!aprs_is_configured($S)): ?>
         <div class="setup-banner">
-            👋 Votre iGate n'est pas encore configuré. <a href="/admin/">Ouvrez la page de configuration</a> pour entrer votre indicatif et votre position.
+            👋 <?php echo th('Votre iGate n\'est pas encore configuré.'); ?> <a href="/admin/"><?php echo th('Ouvrez la page de configuration'); ?></a> <?php echo th('pour entrer votre indicatif et votre position.'); ?>
         </div>
         <?php endif; ?>
-        
+
         <!-- Statistiques -->
         <div class="stats">
             <div class="stat-card">
                 <div class="value"><?php echo number_format($stats['total']); ?></div>
-                <div class="label">Paquets totaux</div>
+                <div class="label"><?php echo th('Paquets totaux'); ?></div>
             </div>
             <div class="stat-card">
                 <div class="value"><?php echo number_format($stats['unique_calls']); ?></div>
-                <div class="label">Indicatifs uniques</div>
+                <div class="label"><?php echo th('Indicatifs uniques'); ?></div>
             </div>
             <div class="stat-card">
                 <div class="value"><?php echo number_format($stats['with_position']); ?></div>
-                <div class="label">Avec position</div>
+                <div class="label"><?php echo th('Avec position'); ?></div>
             </div>
             <div class="stat-card">
                 <div class="value"><?php echo $stats['last_packet']; ?></div>
-                <div class="label">Dernier paquet</div>
+                <div class="label"><?php echo th('Dernier paquet'); ?></div>
             </div>
         </div>
-        
+
         <!-- Onglets -->
         <div class="tabs">
             <div class="tab-buttons">
                 <a href="?tab=packets" class="tab-button <?php echo $tab === 'packets' ? 'active' : ''; ?>">
-                    📦 Paquets
+                    📦 <?php echo th('Paquets'); ?>
                 </a>
                 <a href="?tab=map" class="tab-button <?php echo $tab === 'map' ? 'active' : ''; ?>">
-                    🗺️ Carte
+                    <?php echo th('🗺️ Carte'); /* clé avec emoji : « Carte » seul = carte réseau ailleurs */ ?>
                 </a>
             </div>
             
@@ -521,7 +547,7 @@ if ($tab === 'packets') {
                 <?php if ($tab === 'packets'): ?>
                     <!-- Onglet Paquets -->
                     <div class="filters">
-                        <h2>🔍 Filtres</h2>
+                        <h2>🔍 <?php echo th('Filtres'); ?></h2>
                         <form method="GET" action="">
                             <input type="hidden" name="tab" value="packets">
                             <div class="filter-row">
@@ -531,21 +557,21 @@ if ($tab === 'packets') {
                                 </div>
                                 
                                 <div class="filter-group">
-                                    <label for="callsign">Indicatif d'appel:</label>
-                                    <input type="text" id="callsign" name="callsign" placeholder="Ex: VE2XXX" value="<?php echo htmlspecialchars($filter_callsign); ?>">
+                                    <label for="callsign"><?php echo th('Indicatif d\'appel:'); ?></label>
+                                    <input type="text" id="callsign" name="callsign" placeholder="<?php echo th('Ex: VE2XXX'); ?>" value="<?php echo htmlspecialchars($filter_callsign); ?>">
                                 </div>
-                                
+
                                 <div class="filter-group">
-                                    <label for="limit">Affichage:</label>
+                                    <label for="limit"><?php echo th('Affichage:'); ?></label>
                                     <select id="limit" name="limit">
-                                        <option value="all" <?php echo $limit === 'all' ? 'selected' : ''; ?>>Tous les paquets</option>
-                                        <option value="10" <?php echo $limit === '10' ? 'selected' : ''; ?>>10 derniers</option>
+                                        <option value="all" <?php echo $limit === 'all' ? 'selected' : ''; ?>><?php echo th('Tous les paquets'); ?></option>
+                                        <option value="10" <?php echo $limit === '10' ? 'selected' : ''; ?>><?php echo th('10 derniers'); ?></option>
                                     </select>
                                 </div>
-                                
+
                                 <div class="filter-group">
-                                    <button type="submit" class="btn">Filtrer</button>
-                                    <a href="?tab=packets" class="btn btn-secondary" style="margin-left: 10px;">Réinitialiser</a>
+                                    <button type="submit" class="btn"><?php echo th('Filtrer'); ?></button>
+                                    <a href="?tab=packets" class="btn btn-secondary" style="margin-left: 10px;"><?php echo th('Réinitialiser'); ?></a>
                                 </div>
                             </div>
                         </form>
@@ -554,9 +580,9 @@ if ($tab === 'packets') {
                     <div class="packet-count">
                         <?php 
                         if ($filter_callsign || $filter_date != date('Y-m-d')) {
-                            echo "Affichage des paquets filtrés - Total: " . number_format($total_packets);
+                            echo th('Affichage des paquets filtrés - Total: %s', number_format($total_packets));
                         } else {
-                            echo "Affichage des paquets d'aujourd'hui - Total: " . number_format($total_packets);
+                            echo th('Affichage des paquets d\'aujourd\'hui - Total: %s', number_format($total_packets));
                         }
                         ?>
                     </div>
@@ -570,7 +596,7 @@ if ($tab === 'packets') {
                         }
                         
                         if ($packet_count === 0) {
-                            echo '<div class="no-packets">Aucun paquet trouvé pour les critères sélectionnés.</div>';
+                            echo '<div class="no-packets">' . th('Aucun paquet trouvé pour les critères sélectionnés.') . '</div>';
                         }
                         ?>
                     </div>
@@ -578,42 +604,42 @@ if ($tab === 'packets') {
                 <?php elseif ($tab === 'map'): ?>
                     <!-- Onglet Carte -->
                     <div class="filters">
-                        <h2>🗺️ Carte des stations APRS</h2>
+                        <h2>🗺️ <?php echo th('Carte des stations APRS'); ?></h2>
                         <form method="GET" action="">
                             <input type="hidden" name="tab" value="map">
                             <div class="filter-row">
                                 <div class="filter-group">
-                                    <label for="hours">Période:</label>
+                                    <label for="hours"><?php echo th('Période:'); ?></label>
                                     <select id="hours" name="hours" onchange="this.form.submit()">
-                                        <option value="1" <?php echo $map_hours === 1 ? 'selected' : ''; ?>>Dernière heure</option>
-                                        <option value="6" <?php echo $map_hours === 6 ? 'selected' : ''; ?>>6 dernières heures</option>
-                                        <option value="12" <?php echo $map_hours === 12 ? 'selected' : ''; ?>>12 dernières heures</option>
-                                        <option value="24" <?php echo $map_hours === 24 ? 'selected' : ''; ?>>24 dernières heures</option>
-                                        <option value="48" <?php echo $map_hours === 48 ? 'selected' : ''; ?>>48 dernières heures</option>
-                                        <option value="168" <?php echo $map_hours === 168 ? 'selected' : ''; ?>>7 derniers jours</option>
+                                        <option value="1" <?php echo $map_hours === 1 ? 'selected' : ''; ?>><?php echo th('Dernière heure'); ?></option>
+                                        <option value="6" <?php echo $map_hours === 6 ? 'selected' : ''; ?>><?php echo h(ucfirst(t('%d dernières heures', 6))); ?></option>
+                                        <option value="12" <?php echo $map_hours === 12 ? 'selected' : ''; ?>><?php echo h(ucfirst(t('%d dernières heures', 12))); ?></option>
+                                        <option value="24" <?php echo $map_hours === 24 ? 'selected' : ''; ?>><?php echo h(ucfirst(t('%d dernières heures', 24))); ?></option>
+                                        <option value="48" <?php echo $map_hours === 48 ? 'selected' : ''; ?>><?php echo h(ucfirst(t('%d dernières heures', 48))); ?></option>
+                                        <option value="168" <?php echo $map_hours === 168 ? 'selected' : ''; ?>><?php echo h(ucfirst(t('%d derniers jours', 7))); ?></option>
                                     </select>
                                 </div>
                             </div>
                         </form>
                     </div>
-                    
+
                     <!-- Bouton mode offline -->
                     <div class="offline-mode-btn">
                         <a href="map-offline.php?hours=<?php echo $map_hours; ?>" class="btn btn-secondary">
-                            📴 Mode Offline (sans Internet)
+                            📴 <?php echo th('Mode Offline (sans Internet)'); ?>
                         </a>
                     </div>
-                    
+
                     <!-- Avertissement offline (caché par défaut) -->
                     <div id="offline-warning">
-                        <strong>⚠️ Mode dégradé:</strong> Certaines tuiles ne sont ni dans le cache du Pi ni accessibles sur Internet (pas d'Internet?).
+                        <strong>⚠️ <?php echo th('Mode dégradé:'); ?></strong> <?php echo th('Certaines tuiles ne sont ni dans le cache du Pi ni accessibles sur Internet (pas d\'Internet?).'); ?>
                         <a href="map-offline.php?hours=<?php echo $map_hours; ?>">
-                            Cliquez ici pour la carte offline (tuiles en cache seulement)
+                            <?php echo th('Cliquez ici pour la carte offline (tuiles en cache seulement)'); ?>
                         </a>
                     </div>
-                    
+
                     <div class="map-info">
-                        <strong>📍 <?php echo count($map_data); ?> station(s)</strong> avec position reçue(s) dans les <strong><?php echo $map_hours; ?> dernières heures</strong>
+                        <strong>📍 <?php echo th('%d station(s)', count($map_data)); ?></strong> <?php echo th('avec position reçue(s) dans les'); ?> <strong><?php echo th('%d dernières heures', $map_hours); ?></strong>
                     </div>
                     
                     <div id="map"></div>
@@ -676,11 +702,11 @@ if ($tab === 'packets') {
                                 (station.symbol_name ? ' <span style="color:#666">· ' + esc(station.symbol_name) + '</span>' : '') + '<br>' +
                                 (station.comment ? '<em>' + esc(station.comment) + '</em><br>' : '') +
                                 '<hr style="margin: 8px 0;">' +
-                                '📍 <strong>Position:</strong><br>' +
+                                '📍 <strong>' + t('Position:') + '</strong><br>' +
                                 'Lat: ' + station.latitude.toFixed(4) + '°<br>' +
                                 'Lon: ' + station.longitude.toFixed(4) + '°<br><br>' +
-                                '🕐 <strong>Dernière réception:</strong><br>' + station.last_seen + '<br><br>' +
-                                '📦 <strong>Paquets reçus:</strong> ' + station.packet_count +
+                                '🕐 <strong>' + t('Dernière réception:') + '</strong><br>' + station.last_seen + '<br><br>' +
+                                '📦 <strong>' + t('Paquets reçus:') + '</strong> ' + station.packet_count +
                                 '</div>';
                             
                             marker.bindPopup(popupContent);

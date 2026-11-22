@@ -35,7 +35,7 @@ $enabled    = $settings['aprsis_enabled'];
 $station    = aprs_station($settings);
 $ssid_icon  = APRS_SSIDS[max(0, min(15, (int)$settings['ssid']))][0];
 
-aprs_admin_header('📡 Reporting vers aprs.fi', 'reporting');
+aprs_admin_header(t('📡 Reporting vers aprs.fi'), 'reporting');
 aprs_flash_box($flash, $errors);
 ?>
     <!-- État du reporting -->
@@ -44,30 +44,30 @@ aprs_flash_box($flash, $errors);
             <div class="report-station">
                 <span class="ssid-icon big"><?php echo $ssid_icon; ?></span>
                 <div>
-                    <div class="report-call"><?php echo h($configured ? $station : 'Indicatif à entrer'); ?></div>
+                    <div class="report-call"><?php echo h($configured ? $station : t('Indicatif à entrer')); ?></div>
                     <div class="muted">
                         <?php if (!$configured): ?>
-                            Entrez votre indicatif ci-dessous, puis enregistrez.
+                            <?php echo th('Entrez votre indicatif ci-dessous, puis enregistrez.'); ?>
                         <?php elseif ($enabled): ?>
-                            Les paquets reçus sont envoyés à APRS-IS (<?php echo h($settings['igserver']); ?>) et apparaissent sur aprs.fi.
+                            <?php echo th('Les paquets reçus sont envoyés à APRS-IS (%s) et apparaissent sur aprs.fi.', $settings['igserver']); ?>
                         <?php else: ?>
-                            L'iGate reçoit et affiche les paquets localement, mais n'envoie rien à APRS-IS.
+                            <?php echo th("L'iGate reçoit et affiche les paquets localement, mais n'envoie rien à APRS-IS."); ?>
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
             <div class="report-toggle">
                 <span class="pill big-pill <?php echo $enabled && $configured ? 'ok' : 'bad'; ?>">
-                    <?php echo $enabled && $configured ? '● ACTIVÉ' : '○ DÉSACTIVÉ'; ?>
+                    <?php echo $enabled && $configured ? '● ' . th('ACTIVÉ') : '○ ' . th('DÉSACTIVÉ'); ?>
                 </span>
                 <form method="POST" action="reporting.php">
                     <?php echo aprs_csrf_field(); ?>
                     <?php if ($enabled): ?>
                         <input type="hidden" name="op" value="disable">
-                        <button class="btn btn-danger">⏸ Disable</button>
+                        <button class="btn btn-danger">⏸ <?php echo th('Disable'); ?></button>
                     <?php else: ?>
                         <input type="hidden" name="op" value="enable">
-                        <button class="btn btn-ok" <?php echo $configured ? '' : 'disabled'; ?>>▶ Enable</button>
+                        <button class="btn btn-ok" <?php echo $configured ? '' : 'disabled'; ?>>▶ <?php echo th('Enable'); ?></button>
                     <?php endif; ?>
                 </form>
             </div>
@@ -76,25 +76,25 @@ aprs_flash_box($flash, $errors);
 
     <!-- Dernier reporting -->
     <div class="card">
-        <h2>✅ Dernier reporting réussi <span class="muted" id="rp-updated"></span></h2>
+        <h2>✅ <?php echo th('Dernier reporting réussi'); ?> <span class="muted" id="rp-updated"></span></h2>
         <div class="status-grid">
-            <div class="status-item"><span>Connexion APRS-IS</span><span id="rp-conn" class="pill unk">…</span></div>
-            <div class="status-item"><span>Passcode accepté</span><span id="rp-verified" class="pill unk">…</span></div>
-            <div class="status-item"><span>Dernier paquet relayé</span><span id="rp-last" class="pill unk">…</span></div>
-            <div class="status-item"><span>Balise de l'iGate</span><span id="rp-beacon" class="pill unk">…</span></div>
+            <div class="status-item"><span><?php echo th('Connexion APRS-IS'); ?></span><span id="rp-conn" class="pill unk">…</span></div>
+            <div class="status-item"><span><?php echo th('Passcode accepté'); ?></span><span id="rp-verified" class="pill unk">…</span></div>
+            <div class="status-item"><span><?php echo th('Dernier paquet relayé'); ?></span><span id="rp-last" class="pill unk">…</span></div>
+            <div class="status-item"><span><?php echo th("Balise de l'iGate"); ?></span><span id="rp-beacon" class="pill unk">…</span></div>
         </div>
         <p class="muted" id="rp-detail" style="margin-top: 10px;"></p>
 
-        <h3 style="margin: 18px 0 8px;">Confirmation par aprs.fi</h3>
+        <h3 style="margin: 18px 0 8px;"><?php echo th('Confirmation par aprs.fi'); ?></h3>
         <div id="rp-aprsfi" class="muted">
             <?php if ($settings['aprsfi_apikey'] === ''): ?>
-                Ajoutez votre clé API aprs.fi (plus bas) pour voir ce qu'aprs.fi a réellement reçu de votre station.
-            <?php else: ?>Interrogation d'aprs.fi…<?php endif; ?>
+                <?php echo th("Ajoutez votre clé API aprs.fi (plus bas) pour voir ce qu'aprs.fi a réellement reçu de votre station."); ?>
+            <?php else: ?><?php echo th("Interrogation d'aprs.fi…"); ?><?php endif; ?>
         </div>
         <?php if ($configured): ?>
             <p style="margin-top: 12px;">
-                <a class="back" href="https://aprs.fi/#!call=a%2F<?php echo urlencode($station); ?>" target="_blank" rel="noopener">Voir <?php echo h($station); ?> sur aprs.fi ↗</a>
-                · <a class="back" href="https://aprs.fi/info/a/<?php echo urlencode($station); ?>" target="_blank" rel="noopener">fiche de la station ↗</a>
+                <a class="back" href="https://aprs.fi/#!call=a%2F<?php echo urlencode($station); ?>" target="_blank" rel="noopener"><?php echo th('Voir %s sur aprs.fi', $station); ?> ↗</a>
+                · <a class="back" href="https://aprs.fi/info/a/<?php echo urlencode($station); ?>" target="_blank" rel="noopener"><?php echo th('fiche de la station'); ?> ↗</a>
             </p>
         <?php endif; ?>
     </div>
@@ -105,8 +105,8 @@ aprs_flash_box($flash, $errors);
         <input type="hidden" name="op" value="save">
         <?php aprs_render_sections($sections, $settings, $errors); ?>
         <div class="save-bar">
-            <button type="submit" class="btn">💾 Enregistrer et appliquer</button>
-            <span class="muted">Le passcode est recalculé et Direwolf se reconnecte avec les nouveaux identifiants.</span>
+            <button type="submit" class="btn">💾 <?php echo th('Enregistrer et appliquer'); ?></button>
+            <span class="muted"><?php echo th('Le passcode est recalculé et Direwolf se reconnecte avec les nouveaux identifiants.'); ?></span>
         </div>
     </form>
 
@@ -116,13 +116,17 @@ aprs_flash_box($flash, $errors);
     function pill(el, text, cls) { el.textContent = text; el.className = 'pill ' + cls; }
     function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function ago(sec) {
-        sec = Math.max(0, Math.round(sec));
-        if (sec < 60) return 'il y a ' + sec + ' s';
-        if (sec < 3600) return 'il y a ' + Math.floor(sec / 60) + ' min';
-        if (sec < 86400) return 'il y a ' + Math.floor(sec / 3600) + ' h ' + Math.floor(sec % 3600 / 60) + ' min';
-        return 'il y a ' + Math.floor(sec / 86400) + ' j';
+        return t('il y a %s', dur(sec));
     }
-    function when(t) { return new Date(t * 1000).toLocaleString('fr-CA', {hour12: false}); }
+    function dur(sec) {
+        sec = Math.max(0, Math.round(sec));
+        if (sec < 60) return sec + ' s';
+        if (sec < 3600) return Math.floor(sec / 60) + ' min';
+        if (sec < 86400) return Math.floor(sec / 3600) + ' h ' + Math.floor(sec % 3600 / 60) + ' min';
+        return Math.floor(sec / 86400) + ' ' + t('j');
+    }
+    var LOC = window.APRS_LANG === 'en' ? 'en-CA' : 'fr-CA';
+    function when(ts) { return new Date(ts * 1000).toLocaleString(LOC, {hour12: false}); }
 
     // ---- Passcode calculé en direct (algorithme public d'APRS-IS)
     function passcode(call) {
@@ -153,19 +157,19 @@ aprs_flash_box($flash, $errors);
     // ---- État du reporting (journal Direwolf + base de données)
     function render(d) {
         var c = d.settings, is = d.aprsis || {};
-        $('rp-updated').textContent = '· mis à jour ' + new Date(d.now * 1000).toLocaleTimeString('fr-CA', {hour12: false});
+        $('rp-updated').textContent = '· ' + t('mis à jour %s', new Date(d.now * 1000).toLocaleTimeString(LOC, {hour12: false}));
         if (!c.aprsis_enabled) {
-            ['rp-conn', 'rp-verified', 'rp-last', 'rp-beacon'].forEach(function (id) { pill($(id), 'désactivé', 'unk'); });
-            $('rp-detail').textContent = 'Le reporting est désactivé : cliquez sur Enable pour envoyer les paquets à APRS-IS.';
+            ['rp-conn', 'rp-verified', 'rp-last', 'rp-beacon'].forEach(function (id) { pill($(id), t('désactivé'), 'unk'); });
+            $('rp-detail').textContent = t('Le reporting est désactivé : cliquez sur Enable pour envoyer les paquets à APRS-IS.');
             return;
         }
-        if (d.service !== 'active') pill($('rp-conn'), 'iGate arrêté', 'bad');
-        else if (is.state === 'connected') pill($('rp-conn'), 'connecté ' + ago(d.now - is.time).replace('il y a ', 'depuis '), 'ok');
-        else if (is.state === 'disconnected') pill($('rp-conn'), 'déconnecté', 'bad');
-        else pill($('rp-conn'), 'inconnu', 'unk');
+        if (d.service !== 'active') pill($('rp-conn'), t('iGate arrêté'), 'bad');
+        else if (is.state === 'connected') pill($('rp-conn'), t('connecté depuis %s', dur(d.now - is.time)), 'ok');
+        else if (is.state === 'disconnected') pill($('rp-conn'), t('déconnecté'), 'bad');
+        else pill($('rp-conn'), t('inconnu'), 'unk');
 
-        if (is.verified === true) pill($('rp-verified'), 'oui (vérifié)', 'ok');
-        else if (is.verified === false) pill($('rp-verified'), 'NON : paquets refusés', 'bad');
+        if (is.verified === true) pill($('rp-verified'), t('oui (vérifié)'), 'ok');
+        else if (is.verified === false) pill($('rp-verified'), t('NON : paquets refusés'), 'bad');
         else pill($('rp-verified'), '?', 'unk');
 
         // Direwolf relaie chaque paquet reçu tant qu'il est connecté :
@@ -175,32 +179,32 @@ aprs_flash_box($flash, $errors);
             pill($('rp-last'), ago(d.now - last), d.now - last < 3600 ? 'ok' : 'mid');
             $('rp-last').title = when(last);
         } else if (last) {
-            pill($('rp-last'), 'aucun depuis la connexion', 'unk');
+            pill($('rp-last'), t('aucun depuis la connexion'), 'unk');
         } else {
-            pill($('rp-last'), 'aucun paquet reçu', 'unk');
+            pill($('rp-last'), t('aucun paquet reçu'), 'unk');
         }
-        pill($('rp-beacon'), c.beacon ? 'toutes les ' + c.beacon_every + ' min' : 'désactivée', c.beacon ? 'ok' : 'unk');
+        pill($('rp-beacon'), c.beacon ? t('toutes les %s min', c.beacon_every) : t('désactivée'), c.beacon ? 'ok' : 'unk');
 
-        var txt = 'Serveur ' + c.igserver + '.';
-        if (is.line) txt += ' Dernier message : « ' + is.line + ' »';
-        if (is.verified === false) txt += ' — Le serveur refuse le passcode : vérifiez l\'indicatif.';
+        var txt = t('Serveur %s.', c.igserver);
+        if (is.line) txt += ' ' + t('Dernier message : « %s »', is.line);
+        if (is.verified === false) txt += ' — ' + t('Le serveur refuse le passcode : vérifiez l\'indicatif.');
         $('rp-detail').textContent = txt;
     }
     function renderAprsfi(a) {
         var box = $('rp-aprsfi');
         if (!a.enabled) return;
-        if (!a.ok) { box.innerHTML = '<span class="pill bad">' + esc(a.error || 'erreur') + '</span>'; return; }
+        if (!a.ok) { box.innerHTML = '<span class="pill bad">' + esc(a.error || t('erreur')) + '</span>'; return; }
         if (!a.found) {
-            box.innerHTML = '<span class="pill mid">aprs.fi n\'a encore rien reçu de ' + esc(a.station) + '</span>' +
-                ' <span class="muted">(normal pendant les premières minutes ; la balise de l\'iGate doit être activée)</span>';
+            box.innerHTML = '<span class="pill mid">' + esc(t('aprs.fi n\'a encore rien reçu de %s', a.station)) + '</span>' +
+                ' <span class="muted">' + esc(t('(normal pendant les premières minutes ; la balise de l\'iGate doit être activée)')) + '</span>';
             return;
         }
         var e = a.entry, age = Math.floor(Date.now() / 1000) - e.lasttime;
         var viaUs = /qAC|TCPIP/.test(e.path);
-        box.innerHTML = '<span class="pill ' + (age < 7200 ? 'ok' : 'mid') + '">aprs.fi a reçu ' + esc(a.station) + ' ' + ago(age) + '</span>' +
-            ' <span class="muted">le ' + esc(when(e.lasttime)) + (viaUs ? ' · via la connexion Internet de l\'iGate' : '') +
-            (e.path ? ' · chemin ' + esc(e.path) : '') + '</span>' +
-            (e.comment ? '<div class="muted" style="margin-top:6px">Commentaire : ' + esc(e.comment) + '</div>' : '');
+        box.innerHTML = '<span class="pill ' + (age < 7200 ? 'ok' : 'mid') + '">' + esc(t('aprs.fi a reçu %s %s', a.station, ago(age))) + '</span>' +
+            ' <span class="muted">' + esc(t('le %s', when(e.lasttime))) + (viaUs ? ' · ' + esc(t('via la connexion Internet de l\'iGate')) : '') +
+            (e.path ? ' · ' + esc(t('chemin %s', e.path)) : '') + '</span>' +
+            (e.comment ? '<div class="muted" style="margin-top:6px">' + esc(t('Commentaire : %s', e.comment)) + '</div>' : '');
     }
 
     function load() {

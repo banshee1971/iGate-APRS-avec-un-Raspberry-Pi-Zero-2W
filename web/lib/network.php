@@ -13,6 +13,19 @@ function aprs_net_origin() {
             'eth' => ['mode' => 'dhcp'], 'wifi' => ['mode' => 'existing']];
 }
 
+/** Nom affiché d'un profil : le profil Origine est traduit, les noms saisis jamais. */
+function aprs_net_name(array $p) {
+    if (($p['id'] ?? '') === 'origine') return t('Origine (installation)');
+    return (string)($p['name'] ?? '');
+}
+
+/** Nom affiché du profil $id, ou l'id lui-même s'il est introuvable. */
+function aprs_net_label(array $data, $id) {
+    if ($id === 'origine') return t('Origine (installation)');
+    $p = aprs_net_find($data, $id);
+    return $p ? aprs_net_name($p) : (string)$id;
+}
+
 /** ['profiles' => [...], 'fallback' => id|''] — avec le profil Origine garanti. */
 function aprs_net_load() {
     $data = is_readable(APRS_NET_PROFILES) ? (json_decode((string)file_get_contents(APRS_NET_PROFILES), true) ?: []) : [];
@@ -66,7 +79,7 @@ function aprs_net_text($v, $min, $max) {
 function aprs_net_from_post(array $in, $id, $builtin = false) {
     $e = [];
     $p = ['id' => $id, 'builtin' => $builtin];
-    $p['name'] = aprs_net_text(trim($in['name'] ?? ''), 1, 40) ?? ($e['name'] = 'Nom requis (40 caractères maximum).');
+    $p['name'] = aprs_net_text(trim($in['name'] ?? ''), 1, 40) ?? ($e['name'] = t('Nom requis (40 caractères maximum).'));
     $dns_ok = function ($v) {
         foreach (preg_split('/[\s,]+/', trim((string)$v), -1, PREG_SPLIT_NO_EMPTY) as $d) {
             if (!aprs_net_ip($d, false)) return false;
@@ -76,53 +89,56 @@ function aprs_net_from_post(array $in, $id, $builtin = false) {
 
     $eth = ['mode' => in_array($in['eth_mode'] ?? '', ['dhcp', 'static', 'off'], true) ? $in['eth_mode'] : 'dhcp'];
     if ($eth['mode'] === 'static') {
-        $eth['address'] = aprs_net_ip($in['eth_address'] ?? '', true) ?? ($e['eth_address'] = 'Format : 192.168.1.50/24');
+        $eth['address'] = aprs_net_ip($in['eth_address'] ?? '', true) ?? ($e['eth_address'] = t('Format : 192.168.1.50/24'));
         $eth['gateway'] = trim($in['eth_gateway'] ?? '');
-        if ($eth['gateway'] !== '' && !aprs_net_ip($eth['gateway'], false)) $e['eth_gateway'] = 'Adresse invalide.';
+        if ($eth['gateway'] !== '' && !aprs_net_ip($eth['gateway'], false)) $e['eth_gateway'] = t('Adresse invalide.');
         $eth['dns'] = trim($in['eth_dns'] ?? '');
-        if (!$dns_ok($eth['dns'])) $e['eth_dns'] = 'Adresses séparées par des espaces.';
+        if (!$dns_ok($eth['dns'])) $e['eth_dns'] = t('Adresses séparées par des espaces.');
     }
     $p['eth'] = $eth;
 
     $wmode = in_array($in['wifi_mode'] ?? '', ['existing', 'client', 'ap', 'off'], true) ? $in['wifi_mode'] : 'existing';
     $wifi = ['mode' => $wmode];
     if ($wmode === 'client') {
-        $wifi['ssid'] = aprs_net_text($in['wifi_ssid'] ?? '', 1, 32) ?? ($e['wifi_ssid'] = 'Nom du réseau requis (32 caractères maximum).');
+        $wifi['ssid'] = aprs_net_text($in['wifi_ssid'] ?? '', 1, 32) ?? ($e['wifi_ssid'] = t('Nom du réseau requis (32 caractères maximum).'));
         $pw = (string)($in['wifi_password'] ?? '');
         if ($pw === '' && !empty($in['_keep_wifi_password'])) $pw = $in['_keep_wifi_password'];
-        $wifi['password'] = $pw === '' ? '' : (aprs_net_text($pw, 8, 63) ?? ($e['wifi_password'] = '8 à 63 caractères (vide = réseau ouvert).'));
+        $wifi['password'] = $pw === '' ? '' : (aprs_net_text($pw, 8, 63) ?? ($e['wifi_password'] = t('8 à 63 caractères (vide = réseau ouvert).')));
         $wifi['ip'] = ($in['wifi_ip'] ?? 'dhcp') === 'static' ? 'static' : 'dhcp';
         if ($wifi['ip'] === 'static') {
-            $wifi['address'] = aprs_net_ip($in['wifi_address'] ?? '', true) ?? ($e['wifi_address'] = 'Format : 192.168.1.51/24');
+            $wifi['address'] = aprs_net_ip($in['wifi_address'] ?? '', true) ?? ($e['wifi_address'] = t('Format : 192.168.1.51/24'));
             $wifi['gateway'] = trim($in['wifi_gateway'] ?? '');
-            if ($wifi['gateway'] !== '' && !aprs_net_ip($wifi['gateway'], false)) $e['wifi_gateway'] = 'Adresse invalide.';
+            if ($wifi['gateway'] !== '' && !aprs_net_ip($wifi['gateway'], false)) $e['wifi_gateway'] = t('Adresse invalide.');
             $wifi['dns'] = trim($in['wifi_dns'] ?? '');
-            if (!$dns_ok($wifi['dns'])) $e['wifi_dns'] = 'Adresses séparées par des espaces.';
+            if (!$dns_ok($wifi['dns'])) $e['wifi_dns'] = t('Adresses séparées par des espaces.');
         }
     } elseif ($wmode === 'ap') {
-        $wifi['ssid'] = aprs_net_text($in['ap_ssid'] ?? '', 1, 32) ?? ($e['ap_ssid'] = 'Nom de la borne requis (32 caractères maximum).');
+        $wifi['ssid'] = aprs_net_text($in['ap_ssid'] ?? '', 1, 32) ?? ($e['ap_ssid'] = t('Nom de la borne requis (32 caractères maximum).'));
         $pw = (string)($in['ap_password'] ?? '');
         if ($pw === '' && !empty($in['_keep_ap_password'])) $pw = $in['_keep_ap_password'];
-        $wifi['password'] = aprs_net_text($pw, 8, 63) ?? ($e['ap_password'] = '8 à 63 caractères (obligatoire).');
+        $wifi['password'] = aprs_net_text($pw, 8, 63) ?? ($e['ap_password'] = t('8 à 63 caractères (obligatoire).'));
         $wifi['channel'] = in_array((int)($in['ap_channel'] ?? 6), [1, 6, 11], true) ? (int)$in['ap_channel'] : 6;
     }
     $p['wifi'] = $wifi;
     if ($eth['mode'] === 'off' && in_array($wmode, ['off'], true)) {
-        $e['wifi_mode'] = 'Au moins un accès réseau doit rester actif.';
+        $e['wifi_mode'] = t('Au moins un accès réseau doit rester actif.');
     }
     return [$p, $e];
 }
 
 /** Résumé lisible d'un profil. */
 function aprs_net_summary(array $p) {
-    $eth_labels = ['dhcp' => 'Ethernet : DHCP', 'off' => 'Ethernet : désactivé'];
-    $eth = $eth_labels[$p['eth']['mode']] ?? ('Ethernet : ' . ($p['eth']['address'] ?? '?'));
+    switch ($p['eth']['mode']) {
+        case 'dhcp': $eth = t('Ethernet : DHCP'); break;
+        case 'off':  $eth = t('Ethernet : désactivé'); break;
+        default:     $eth = t('Ethernet : %s', $p['eth']['address'] ?? '?');
+    }
     $w = $p['wifi'];
     switch ($w['mode']) {
-        case 'client': $wifi = 'Wi-Fi : réseau « ' . $w['ssid'] . ' »' . (($w['ip'] ?? '') === 'static' ? ' (' . $w['address'] . ')' : ''); break;
-        case 'ap':     $wifi = '📶 Borne Wi-Fi « ' . $w['ssid'] . ' » (10.42.0.1)'; break;
-        case 'off':    $wifi = 'Wi-Fi : désactivé'; break;
-        default:       $wifi = 'Wi-Fi : réseau configuré à l\'installation';
+        case 'client': $wifi = t('Wi-Fi : réseau « %s »', $w['ssid']) . (($w['ip'] ?? '') === 'static' ? ' (' . $w['address'] . ')' : ''); break;
+        case 'ap':     $wifi = '📶 ' . t('Borne Wi-Fi « %s »', $w['ssid']) . ' (10.42.0.1)'; break;
+        case 'off':    $wifi = t('Wi-Fi : désactivé'); break;
+        default:       $wifi = t('Wi-Fi : réseau configuré à l\'installation');
     }
     return $eth . ' · ' . $wifi;
 }

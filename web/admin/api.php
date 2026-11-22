@@ -22,7 +22,16 @@ if ($what === 'metrics') {
     }
     echo json_encode($lv ?: ['age' => null]);
 } elseif ($what === 'aprsfi') {
-    echo json_encode(api_aprsfi(), JSON_UNESCAPED_UNICODE);
+    // Le cache garde le message d'erreur en français : traduit à l'envoi
+    $af = api_aprsfi();
+    if (isset($af['error']) && is_string($af['error'])) {
+        if (strpos($af['error'], 'aprs.fi : ') === 0) {
+            $af['error'] = 'aprs.fi : ' . t(substr($af['error'], strlen('aprs.fi : ')));
+        } else {
+            $af['error'] = t($af['error']);
+        }
+    }
+    echo json_encode($af, JSON_UNESCAPED_UNICODE);
 } else {
     http_response_code(404);
     echo json_encode(['error' => 'inconnu']);
@@ -231,11 +240,11 @@ function api_direwolf() {
         if (preg_match('/RTL-SDR Blog V4 Detected/i', $msg)) $blog_v4 = true;
         if (preg_match('/^Found \d+ device|Using device/i', $msg)) $sdr_error = null;
         if (preg_match('/No supported devices found/i', $msg)) {
-            $sdr_error = 'rtl_fm ne trouve aucun dongle (débranché ou mal alimenté ?).';
+            $sdr_error = t('rtl_fm ne trouve aucun dongle (débranché ou mal alimenté ?).');
         } elseif (preg_match('/usb_claim_interface error|Kernel driver is active|device or resource busy/i', $msg)) {
-            $sdr_error = 'Dongle occupé : le pilote DVB du noyau ou un autre programme le bloque (redémarrez le Pi).';
+            $sdr_error = t('Dongle occupé : le pilote DVB du noyau ou un autre programme le bloque (redémarrez le Pi).');
         } elseif (preg_match('/Failed to open rtlsdr device/i', $msg)) {
-            $sdr_error = "rtl_fm n'arrive pas à ouvrir le dongle (droits USB, pilote DVB ou autre programme).";
+            $sdr_error = t("rtl_fm n'arrive pas à ouvrir le dongle (droits USB, pilote DVB ou autre programme).");
         }
         if (preg_match('/logresp \S+ (verified|unverified)/i', $msg, $v)) {
             $is['verified'] = strtolower($v[1]) === 'verified';
@@ -288,7 +297,7 @@ function api_direwolf() {
 
     $out['settings'] = [
         'freq' => $s['freq'], 'gain' => $s['rtl_agc'] ? 'auto' : $s['gain'], 'ppm' => $s['ppm'],
-        'rate' => $s['rtl_sample_rate'], 'profile' => $s['dw_modem_profile'] ?: 'défaut',
+        'rate' => $s['rtl_sample_rate'], 'profile' => $s['dw_modem_profile'] ?: t('défaut'),
         'fix_bits' => $s['dw_fix_bits'],
         'aprsis_enabled' => $s['aprsis_enabled'], 'beacon' => $s['beacon'],
         'beacon_every' => $s['beacon_every'], 'igserver' => $s['igserver'],

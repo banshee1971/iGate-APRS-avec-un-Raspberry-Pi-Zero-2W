@@ -1,0 +1,121 @@
+<?php
+// Page /admin -> Réseau (web/admin/network.php, web/lib/network.php)
+return [
+    // Titre, profil intégré
+    'Réseau' => 'Network',
+    '🌐 Réseau' => '🌐 Network',
+    'Origine (installation)' => 'Original (installation)',
+
+    // Messages après redirection (?msg=...)
+    'Activation du profil « %s » demandée.' => 'Activation of profile “%s” requested.',
+    'Impossible de déposer la demande.' => 'Could not queue the request.',
+    'Configuration réseau confirmée.' => 'Network configuration confirmed.',
+    'Profil « %s » supprimé.' => 'Profile “%s” deleted.',
+    'Écriture impossible.' => 'Could not write the file.',
+    'Profil de secours enregistré.' => 'Fallback profile saved.',
+    'Ce profil ne peut pas être modifié.' => 'This profile cannot be edited.',
+    'Profil « %s » enregistré.' => 'Profile “%s” saved.',
+    'Cliquez sur « Activer » pour appliquer les changements.' => 'Click “Activate” to apply the changes.',
+    'Écriture impossible (%s).' => 'Could not write the file (%s).',
+
+    // Validation
+    'Nom requis (40 caractères maximum).' => 'Name required (40 characters max).',
+    'Format : 192.168.1.50/24' => 'Format: 192.168.1.50/24',
+    'Format : 192.168.1.51/24' => 'Format: 192.168.1.51/24',
+    'Adresse invalide.' => 'Invalid address.',
+    'Adresses séparées par des espaces.' => 'Addresses separated by spaces.',
+    'Nom du réseau requis (32 caractères maximum).' => 'Network name required (32 characters max).',
+    '8 à 63 caractères (vide = réseau ouvert).' => '8 to 63 characters (empty = open network).',
+    'Nom de la borne requis (32 caractères maximum).' => 'Hotspot name required (32 characters max).',
+    '8 à 63 caractères (obligatoire).' => '8 to 63 characters (required).',
+    'Au moins un accès réseau doit rester actif.' => 'At least one network connection must stay enabled.',
+
+    // Résumé d'un profil
+    'Ethernet : DHCP' => 'Ethernet: DHCP',
+    'Ethernet : désactivé' => 'Ethernet: disabled',
+    'Ethernet : %s' => 'Ethernet: %s',
+    'Wi-Fi : réseau « %s »' => 'Wi-Fi: network “%s”',
+    'Borne Wi-Fi « %s »' => 'Wi-Fi hotspot “%s”',
+    'Wi-Fi : désactivé' => 'Wi-Fi: disabled',
+    'Wi-Fi : réseau configuré à l\'installation' => 'Wi-Fi: network set up at installation',
+
+    // Bandeau de confirmation, changement en cours
+    'Nouvelle configuration réseau active : « %s »' => 'New network configuration active: “%s”',
+    'Si vous voyez cette page, la connexion fonctionne : gardez-la. Sans confirmation, le Pi reviendra au profil « %s » dans' => 'If you can see this page, the connection works: keep it. Without confirmation, the Pi will revert to profile “%s” in',
+    'Garder cette configuration' => 'Keep this configuration',
+    'Changement de réseau en cours… Si la page ne revient pas, reconnectez-vous au nouveau réseau puis ouvrez' => 'Network change in progress… If the page does not come back, reconnect to the new network and open',
+    '(ou %s pour une borne Wi-Fi).' => '(or %s for a Wi-Fi hotspot).',
+
+    // État actuel
+    'État actuel' => 'Current status',
+    'Impossible de lire l\'état réseau (NetworkManager absent ?).' => 'Could not read the network status (NetworkManager missing?).',
+    'Carte' => 'Interface',
+    'Type' => 'Type',
+    'État' => 'State',
+    'Connexion réseau' => 'Connection',
+    'Adresse IP' => 'IP address',
+    'Profil actif :' => 'Active profile:',
+    '(depuis le %s)' => '(since %s)',
+    'Nom du Pi sur le réseau :' => 'Pi name on the network:',
+
+    // Profils enregistrés
+    'Profils enregistrés' => 'Saved profiles',
+    'actif' => 'active',
+    'secours' => 'fallback',
+    'Réappliquer' => 'Reapply',
+    'Activer' => 'Activate',
+    'Modifier' => 'Edit',
+    'Supprimer ce profil ?' => 'Delete this profile?',
+    'Nouveau profil' => 'New profile',
+    '« Origine » remet le réseau comme à l\'installation : Ethernet en DHCP et le Wi-Fi entré dans Raspberry Pi Imager. Il ne peut être ni modifié ni supprimé.' => '“Original” restores the network as it was at installation: Ethernet via DHCP and the Wi-Fi entered in Raspberry Pi Imager. It cannot be edited or deleted.',
+
+    // Formulaire
+    'Modifier « %s »' => 'Edit “%s”',
+    'Corrigez les champs en rouge.' => 'Fix the fields in red.',
+    '(vide = garder le mot de passe actuel)' => '(empty = keep the current password)',
+    'Nom du profil' => 'Profile name',
+    'Ex. : Club radio' => 'E.g. Radio club',
+    'Ethernet (carte intégrée ou adaptateur USB)' => 'Ethernet (built-in port or USB adapter)',
+    'Adressage' => 'Addressing',
+    'Automatique (DHCP)' => 'Automatic (DHCP)',
+    'Adresse fixe' => 'Static IP',
+    'Désactivé' => 'Disabled',
+    'Adresse IP / masque' => 'IP address / mask',
+    'Format CIDR : /24 = 255.255.255.0' => 'CIDR format: /24 = 255.255.255.0',
+    'Passerelle (routeur)' => 'Gateway (router)',
+    'Serveurs DNS' => 'DNS servers',
+    'Séparés par des espaces' => 'Separated by spaces',
+    'Mode' => 'Mode',
+    'Réseau configuré à l\'installation' => 'Network set up at installation',
+    'Se connecter à un autre réseau' => 'Connect to another network',
+    'Borne Wi-Fi (le Pi crée son propre réseau)' => 'Wi-Fi hotspot (the Pi creates its own network)',
+    'Nom du réseau (SSID)' => 'Network name (SSID)',
+    'Mot de passe' => 'Password',
+    '8 à 63 caractères ; vide = réseau ouvert' => '8 to 63 characters; empty = open network',
+    'Passerelle' => 'Gateway',
+    'Nom de la borne (SSID)' => 'Hotspot name (SSID)',
+    'Le nom que verront les téléphones et portables.' => 'The name phones and laptops will see.',
+    'Mot de passe de la borne' => 'Hotspot password',
+    '8 à 63 caractères (obligatoire)' => '8 to 63 characters (required)',
+    'Canal' => 'Channel',
+    'Canal %d' => 'Channel %d',
+    'Connectez-vous à la borne puis ouvrez %s. Si un câble Ethernet relié à Internet est branché, les appareils connectés à la borne ont aussi Internet. Sans câble, l\'iGate reçoit et affiche les paquets localement (carte en mode Offline), mais ne peut pas les envoyer à aprs.fi.' => 'Connect to the hotspot, then open %s. If an Ethernet cable connected to the Internet is plugged in, devices connected to the hotspot also get Internet access. Without a cable, the iGate receives and displays packets locally (map in Offline mode), but cannot send them to aprs.fi.',
+    'Enregistrer le profil' => 'Save profile',
+    'Annuler' => 'Cancel',
+    'Enregistrer ne change rien tout de suite : cliquez ensuite sur « Activer ».' => 'Saving changes nothing right away: click “Activate” afterwards.',
+
+    // Profil de secours
+    'Profil de secours' => 'Fallback profile',
+    'Si le Pi n\'est connecté à %s réseau 3 minutes après le démarrage (par exemple : vous êtes au club et le Wi-Fi de la maison n\'est pas là), il active ce profil. Choisissez une %s pour toujours pouvoir le rejoindre.' => 'If the Pi is connected to %s network 3 minutes after boot (for example, you are at the club and your home Wi-Fi is not there), it activates this profile. Choose a %s so you can always reach it.',
+    'aucun' => 'no',
+    'borne Wi-Fi' => 'Wi-Fi hotspot',
+    'Aucun' => 'None',
+    'Enregistrer' => 'Save',
+
+    // Confirmation JavaScript
+    'Activer le profil « %s » ?' => 'Activate profile “%s”?',
+    'La connexion à cette page peut être coupée.' => 'The connection to this page may be lost.',
+    'Connectez-vous ensuite à la borne Wi-Fi et ouvrez %s.' => 'Then connect to the Wi-Fi hotspot and open %s.',
+    'Reconnectez-vous ensuite au même réseau que le Pi.' => 'Then reconnect to the same network as the Pi.',
+    'Vous aurez 5 minutes pour confirmer depuis le nouveau réseau, sinon le Pi reviendra tout seul à la configuration actuelle.' => 'You will have 5 minutes to confirm from the new network; otherwise the Pi will automatically revert to the current configuration.',
+];

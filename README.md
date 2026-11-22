@@ -1,3 +1,5 @@
+🇬🇧 [English version](README.en.md)
+
 # iGate APRS avec un Raspberry Pi Zero 2W
 
 Kit de déploiement pour monter un **iGate APRS en réception seulement** avec un
@@ -164,6 +166,10 @@ Vérifiez ensuite votre iGate sur `https://aprs.fi/#!call=a%2FVOTRE-INDICATIF-10
 ---
 
 ## L'interface web
+
+L'interface est bilingue français / anglais : sélecteur **FR | EN** en haut de chaque page,
+langue par défaut dans Admin → Configuration (« Langue de l'interface » ; par défaut
+automatique, selon la langue du navigateur).
 
 - **📦 Paquets** : tous les paquets reçus, filtrables par date et indicatif, **décodés en
   clair** avec l'icône APRS de chaque station : position (avec distance et direction depuis

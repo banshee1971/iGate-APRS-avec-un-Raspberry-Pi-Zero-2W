@@ -4,6 +4,7 @@
 // naviguant sur la carte normale. Aucune requête vers Internet.
 require __DIR__ . '/lib/settings.php';
 $S = aprs_load_settings();
+aprs_lang();   // choisit la langue (et pose le cookie ?lang=) avant toute sortie
 $db = new SQLite3(APRS_DB_PATH, SQLITE3_OPEN_READONLY);
 
 $map_hours = isset($_GET['hours']) ? intval($_GET['hours']) : intval($S['map_default_hours']);
@@ -32,16 +33,18 @@ while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
 }
 $db->close();
 
-$hours_choices = [1 => 'Dernière heure', 6 => '6 dernières heures', 12 => '12 dernières heures',
-                  24 => '24 dernières heures', 48 => '48 dernières heures', 168 => '7 derniers jours'];
+$hours_choices = [1 => t('Dernière heure'), 6 => t('%d dernières heures', 6), 12 => t('%d dernières heures', 12),
+                  24 => t('%d dernières heures', 24), 48 => t('%d dernières heures', 48), 168 => t('%d derniers jours', 7)];
+$hours_choices = array_map('ucfirst', $hours_choices);   // « last 6 hours » -> « Last 6 hours »
 ?>
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="<?php echo h(aprs_lang()); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo h(aprs_title($S)); ?> - Carte Offline</title>
+    <title><?php echo h(aprs_title($S)); ?> - <?php echo th('Carte Offline'); ?></title>
     <?php echo aprs_leaflet_tags(); ?>
+    <?php echo aprs_i18n_js(); ?>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -61,6 +64,10 @@ $hours_choices = [1 => 'Dernière heure', 6 => '6 dernières heures', 12 => '12 
         .header h1 { color: #333; font-size: 2em; margin-bottom: 5px; }
         .back-link { display: inline-block; margin-top: 10px; color: #667eea; text-decoration: none; font-weight: 500; }
         .back-link:hover { text-decoration: underline; }
+        .header-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; }
+        .lang-switch { font-size: 0.85em; color: #888; white-space: nowrap; }
+        .lang-switch a { color: inherit; text-decoration: none; }
+        .lang-switch a:hover { text-decoration: underline; }
         .filters { margin-bottom: 20px; }
         .filter-row { display: flex; gap: 15px; align-items: center; }
         .filter-group label { margin-right: 10px; font-weight: 500; }
@@ -107,25 +114,28 @@ $hours_choices = [1 => 'Dernière heure', 6 => '6 dernières heures', 12 => '12 
 <body>
     <div class="container">
         <div class="header">
-            <h1>🗺️ <?php echo h(aprs_title($S)); ?> - Carte Offline</h1>
-            <a href="index.php?tab=map&hours=<?php echo $map_hours; ?>" class="back-link">← Retour à la carte en ligne</a>
+            <div class="header-top">
+                <h1>🗺️ <?php echo h(aprs_title($S)); ?> - <?php echo th('Carte Offline'); ?></h1>
+                <?php echo aprs_lang_switch(); ?>
+            </div>
+            <a href="index.php?tab=map&hours=<?php echo $map_hours; ?>" class="back-link">← <?php echo th('Retour à la carte en ligne'); ?></a>
         </div>
 
         <div class="content">
             <div class="offline-notice">
-                <strong>📴 Mode Offline :</strong> cette carte n'utilise que les tuiles gardées en cache sur le Pi
-                (celles déjà consultées sur la carte en ligne, ou pré-téléchargées depuis <a href="/admin/">la configuration</a>).
-                Les zones jamais visitées apparaissent en quadrillage gris.
+                <strong>📴 <?php echo th('Mode Offline :'); ?></strong> <?php echo th('cette carte n\'utilise que les tuiles gardées en cache sur le Pi'); ?>
+                (<?php echo th('celles déjà consultées sur la carte en ligne, ou pré-téléchargées depuis'); ?> <a href="/admin/"><?php echo th('la configuration'); ?></a>).
+                <?php echo th('Les zones jamais visitées apparaissent en quadrillage gris.'); ?>
             </div>
 
             <div class="filters">
                 <form method="GET" action="">
                     <div class="filter-row">
                         <div class="filter-group">
-                            <label for="hours">Période:</label>
+                            <label for="hours"><?php echo th('Période:'); ?></label>
                             <select id="hours" name="hours" onchange="this.form.submit()">
                                 <?php foreach ($hours_choices as $value => $label): ?>
-                                    <option value="<?php echo $value; ?>" <?php echo $map_hours === $value ? 'selected' : ''; ?>><?php echo $label; ?></option>
+                                    <option value="<?php echo $value; ?>" <?php echo $map_hours === $value ? 'selected' : ''; ?>><?php echo h($label); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -134,20 +144,20 @@ $hours_choices = [1 => 'Dernière heure', 6 => '6 dernières heures', 12 => '12 
             </div>
 
             <div class="map-info">
-                <strong>📍 <?php echo count($map_data); ?> station(s)</strong> avec position dans les <strong><?php echo $map_hours; ?> dernières heures</strong>
+                <strong>📍 <?php echo th('%d station(s)', count($map_data)); ?></strong> <?php echo th('avec position dans les'); ?> <strong><?php echo th('%d dernières heures', $map_hours); ?></strong>
             </div>
 
             <div id="map"></div>
 
             <div class="legend">
-                <h3>Légende:</h3>
-                <div class="legend-item">🔴 = Station APRS</div>
-                <div class="legend-item">🟢 = Votre iGate (<?php echo h(aprs_station($S)); ?>)</div>
-                <div class="legend-item">Cliquez sur une station pour voir les détails</div>
+                <h3><?php echo th('Légende:'); ?></h3>
+                <div class="legend-item">🔴 = <?php echo th('Station APRS'); ?></div>
+                <div class="legend-item">🟢 = <?php echo th('Votre iGate (%s)', aprs_station($S)); ?></div>
+                <div class="legend-item"><?php echo th('Cliquez sur une station pour voir les détails'); ?></div>
             </div>
 
             <div class="station-list">
-                <h3>Liste des stations:</h3>
+                <h3><?php echo th('Liste des stations:'); ?></h3>
                 <?php foreach ($map_data as $i => $station): ?>
                     <div class="station-item" onclick="focusStation(<?php echo $i; ?>)">
                         <span class="station-callsign"><?php echo h($station['callsign']); ?></span><br>
@@ -155,8 +165,8 @@ $hours_choices = [1 => 'Dernière heure', 6 => '6 dernières heures', 12 => '12 
                             Lat: <?php echo number_format($station['latitude'], 4); ?>°
                             Lon: <?php echo number_format($station['longitude'], 4); ?>°
                         </span> |
-                        Vu: <?php echo h($station['last_seen']); ?> |
-                        Paquets: <?php echo intval($station['packet_count']); ?>
+                        <?php echo th('Vu:'); ?> <?php echo h($station['last_seen']); ?> |
+                        <?php echo th('Paquets:'); ?> <?php echo intval($station['packet_count']); ?>
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -180,15 +190,15 @@ $hours_choices = [1 => 'Dernière heure', 6 => '6 dernières heures', 12 => '12 
 
         if (typeof L === 'undefined') {
             document.getElementById('map').innerHTML =
-                '<div class="no-leaflet">La bibliothèque de carte (Leaflet) n\'est pas installée sur le Pi. ' +
-                'Relancez <code>sudo ./install.sh</code> avec Internet pour l\'installer.</div>';
+                '<div class="no-leaflet">' + esc(t('La bibliothèque de carte (Leaflet) n\'est pas installée sur le Pi.')) + ' ' +
+                t('Relancez %s avec Internet pour l\'installer.', '<code>sudo ./install.sh</code>') + '</div>';
         } else {
             var map = L.map('map').setView([igate.lat, igate.lon], 10);
 
             // /tiles-cache/ = tuiles du cache du Pi SEULEMENT (jamais Internet).
             // Une tuile absente laisse voir le quadrillage gris.
             L.tileLayer('/tiles-cache/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors (cache local)',
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors ' + t('(cache local)'),
                 maxZoom: 18,
                 errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
             }).addTo(map);
@@ -196,7 +206,7 @@ $hours_choices = [1 => 'Dernière heure', 6 => '6 dernières heures', 12 => '12 
             // Votre iGate
             L.circleMarker([igate.lat, igate.lon], {
                 radius: 10, color: '#ffffff', weight: 2, fillColor: '#4CAF50', fillOpacity: 1
-            }).addTo(map).bindPopup('<strong>' + esc(igate.name) + '</strong><br>Votre iGate');
+            }).addTo(map).bindPopup('<strong>' + esc(igate.name) + '</strong><br>' + t('Votre iGate'));
 
             // Stations
             var bounds = [[igate.lat, igate.lon]];
@@ -209,11 +219,11 @@ $hours_choices = [1 => 'Dernière heure', 6 => '6 dernières heures', 12 => '12 
                     '<div style="font-family: Arial; min-width: 200px;">' +
                     '<strong style="font-size: 1.2em; color: #667eea;">' + esc(station.callsign) + '</strong><br>' +
                     '<hr style="margin: 8px 0;">' +
-                    '📍 <strong>Position:</strong><br>' +
+                    '📍 <strong>' + t('Position:') + '</strong><br>' +
                     'Lat: ' + station.latitude.toFixed(4) + '°<br>' +
                     'Lon: ' + station.longitude.toFixed(4) + '°<br><br>' +
-                    '🕐 <strong>Dernière réception:</strong><br>' + esc(station.last_seen) + '<br><br>' +
-                    '📦 <strong>Paquets reçus:</strong> ' + station.packet_count +
+                    '🕐 <strong>' + t('Dernière réception:') + '</strong><br>' + esc(station.last_seen) + '<br><br>' +
+                    '📦 <strong>' + t('Paquets reçus:') + '</strong> ' + station.packet_count +
                     '</div>'
                 );
                 markers.push(m);

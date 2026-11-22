@@ -16,6 +16,17 @@ h2 { font-size: 1.25em; margin-bottom: 15px; color: #333; }
 .subtitle a, .back { color: #667eea; font-weight: 500; text-decoration: none; }
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap; }
 .logout { display: flex; align-items: center; gap: 10px; }
+.topbar-right { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+
+/* Sélecteur de langue FR | EN */
+.lang-switch { font-size: 0.85em; color: #888; white-space: nowrap; }
+.lang-switch a { color: #667eea; text-decoration: none; font-weight: 500; }
+.lang-switch a:hover { text-decoration: underline; }
+.lang-switch strong { color: #444; }
+.login-lang { text-align: right; margin: -8px -12px 4px 0; }
+body.btop .lang-switch { color: #7f8a99; }
+body.btop .lang-switch a { color: #8fa6ff; }
+body.btop .lang-switch strong { color: #e6e6e6; }
 
 /* Onglets */
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: -8px 0 20px; }
