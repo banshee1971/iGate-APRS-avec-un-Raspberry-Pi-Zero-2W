@@ -1,5 +1,7 @@
 🇫🇷 [Version française](README.md)
 
+📘 **Illustrated installation and user guide**: [online](docs/GUIDE.en.md) · [Word](https://github.com/banshee1971/iGate-APRS-avec-un-Raspberry-Pi-Zero-2W/releases/download/guide-2026-11-22/GUIDE.en.docx)
+
 # APRS iGate with a Raspberry Pi Zero 2W
 
 Deployment kit to build a **receive-only APRS iGate** with a
