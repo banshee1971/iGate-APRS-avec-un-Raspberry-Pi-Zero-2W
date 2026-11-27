@@ -21,6 +21,7 @@ aprs_admin_header(t('📊 Système'), 'system', ['body_class' => 'btop']);
             <span class="bt-title">²<b><?php echo th('alimentation'); ?></b></span>
             <span class="bt-right" id="pwr-model">…</span>
             <div class="pwr-gauges" id="pwr-gauges"></div>
+            <div class="pwr-flags" id="pwr-flags"></div>
             <div class="pwr-note" id="pwr-note"></div>
         </div>
 
@@ -185,6 +186,26 @@ aprs_admin_header(t('📊 Système'), 'system', ['body_class' => 'btop']);
         }
         if (p.core_v !== null) setGauge('core_v', p.core_v);
         if (p.battery_v !== null) setGauge('battery_v', p.battery_v);
+
+        // Indicateurs du firmware : maintenant / depuis le démarrage
+        if (thr) {
+            var flags = [
+                ['undervolt', t('Sous-tension (moins de 4,63 V)')],
+                ['capped', t('Fréquence du processeur plafonnée')],
+                ['throttled', t('Processeur ralenti')],
+                ['softtemp', t('Limite thermique douce atteinte')]
+            ];
+            var cell = function (on, warn) {
+                return on ? '<span class="' + (warn ? 'bt-warm' : 'bt-hot') + '">' + esc(warn ? t('oui, depuis le démarrage') : t('OUI, maintenant')) + '</span>'
+                          : '<span style="color:' + GRN + '">' + esc(t('non')) + '</span>';
+            };
+            $('pwr-flags').innerHTML = flags.map(function (f) {
+                var now = thr[f[0] + '_now'], since = thr[f[0] + '_since_boot'];
+                var state = now ? cell(true, false) : (thr.history ? cell(since, true) : cell(false));
+                return '<div class="bt-kv"><span>' + esc(f[1]) + '</span>' + state + '</div>';
+            }).join('') + '<div class="bt-kv" style="color:#56606e"><span>' + esc(t('source')) + '</span><span>' +
+                esc(thr.source === 'vcgencmd' ? 'vcgencmd get_throttled = ' + thr.raw : (thr.source === 'hwmon' ? t('capteur noyau rpi_volt (sans historique)') : 'sysfs = ' + thr.raw)) + '</span></div>';
+        }
         var notes = [];
         if (p.ext5v === null) notes.push(t('Ce modèle ne mesure pas la tension de son entrée 5 V : le firmware signale seulement une chute sous 4,63 V. Une sous-tension cause des pertes de paquets et des déconnexions du dongle SDR.'));
         if (!p.vcgencmd) notes.push(t('Tension du cœur indisponible : relancez sudo ./install.sh pour donner à la page l\'accès à vcgencmd.'));

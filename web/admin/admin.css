@@ -211,3 +211,4 @@ details summary { cursor: pointer; color: #5568d3; }
 .pwr-state { width: 220px; display: flex; flex-direction: column; justify-content: center; gap: 6px; text-align: center; }
 .pwr-state .big { font-size: 1.3em; font-weight: 600; }
 .pwr-note { color: #7f8a99; font-size: 0.85em; margin-top: 10px; }
+.pwr-flags { max-width: 620px; margin: 14px auto 0; }

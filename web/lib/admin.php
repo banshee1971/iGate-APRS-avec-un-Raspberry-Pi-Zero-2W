@@ -27,7 +27,7 @@ function aprs_admin_header($title, $active, array $opts = []) {
     <title><?php echo h($title); ?> - <?php echo h(aprs_title($s)); ?></title>
     <?php echo aprs_i18n_js(); ?>
     <?php if (!empty($opts['leaflet'])) echo aprs_leaflet_tags(); ?>
-    <link rel="stylesheet" href="/admin/admin.css?v=7">
+    <link rel="stylesheet" href="/admin/admin.css?v=8">
 </head>
 <body class="<?php echo h($opts['body_class'] ?? ''); ?>">
 <div class="container">

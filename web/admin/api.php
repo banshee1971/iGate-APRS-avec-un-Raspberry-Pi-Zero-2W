@@ -68,6 +68,54 @@ function api_power() {
     return $p;
 }
 
+/**
+ * Indicateurs d'alimentation du firmware (mêmes bits que « vcgencmd get_throttled ») :
+ *   bit 0/16 sous-tension (< 4,63 V), 1/17 fréquence plafonnée, 2/18 ralenti,
+ *   3/19 limite thermique douce ; bits 0-3 = maintenant, 16-19 = depuis le démarrage.
+ * Sources, dans l'ordre : vcgencmd, ancien fichier sysfs, puis l'alarme
+ * de sous-tension du pilote noyau rpi_volt (hwmon) qui ne donne que « maintenant ».
+ */
+function api_throttled() {
+    $bits = null;
+    $source = null;
+    $vc = aprs_shell('vcgencmd get_throttled');
+    if ($vc !== null && preg_match('/throttled=(0x[0-9a-fA-F]+)/', $vc, $m)) {
+        $bits = hexdec($m[1]);
+        $source = 'vcgencmd';
+    } else {
+        $sys = read_file('/sys/devices/platform/soc/soc:firmware/get_throttled');
+        if ($sys !== false && preg_match('/^\s*(0x)?([0-9a-fA-F]+)\s*$/', $sys, $m)) {
+            $bits = hexdec($m[2]);
+            $source = 'sysfs';
+        }
+    }
+    $alarm = null;
+    foreach (glob('/sys/class/hwmon/hwmon*') ?: [] as $dir) {
+        if (trim((string)read_file("$dir/name")) === 'rpi_volt') {
+            $a = read_file("$dir/in0_lcrit_alarm");
+            if ($a !== false) $alarm = trim($a) === '1';
+        }
+    }
+    if ($bits === null && $alarm === null) return null;
+    if ($bits === null) {
+        $bits = $alarm ? 0x1 : 0;
+        $source = 'hwmon';
+    }
+    return [
+        'source' => $source,
+        'raw' => sprintf('0x%x', $bits),
+        'undervolt_now' => (bool)($bits & 0x1) || $alarm === true,
+        'capped_now' => (bool)($bits & 0x2),
+        'throttled_now' => (bool)($bits & 0x4),
+        'softtemp_now' => (bool)($bits & 0x8),
+        'undervolt_since_boot' => (bool)($bits & 0x10000),
+        'capped_since_boot' => (bool)($bits & 0x20000),
+        'throttled_since_boot' => (bool)($bits & 0x40000),
+        'softtemp_since_boot' => (bool)($bits & 0x80000),
+        'history' => $source !== 'hwmon',   // hwmon ne connaît pas l'historique
+    ];
+}
+
 function api_metrics() {
     $out = ['time' => microtime(true), 'hz' => 100];
 
@@ -90,16 +138,7 @@ function api_metrics() {
     $out['temp_c'] = $temp !== false ? round(intval($temp) / 1000, 1) : null;
 
     // Alimentation du Pi (sous-tension = cause n°1 de problèmes avec un RTL-SDR)
-    $thr = read_file('/sys/devices/platform/soc/soc:firmware/get_throttled');
-    if ($thr !== false) {
-        $t = hexdec(trim($thr));
-        $out['throttled'] = [
-            'undervolt_now' => (bool)($t & 0x1),
-            'throttled_now' => (bool)($t & 0x4),
-            'undervolt_since_boot' => (bool)($t & 0x10000),
-            'throttled_since_boot' => (bool)($t & 0x40000),
-        ];
-    }
+    $out['throttled'] = api_throttled();
 
     $out['power'] = api_power();
 
