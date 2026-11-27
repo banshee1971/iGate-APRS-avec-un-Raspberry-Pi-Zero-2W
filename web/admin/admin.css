@@ -212,3 +212,7 @@ details summary { cursor: pointer; color: #5568d3; }
 .pwr-state .big { font-size: 1.3em; font-weight: 600; }
 .pwr-note { color: #7f8a99; font-size: 0.85em; margin-top: 10px; }
 .pwr-flags { max-width: 620px; margin: 14px auto 0; }
+.kit-version { text-align: center; color: rgba(255, 255, 255, 0.75); font-size: 0.85em; margin: 24px 0 8px; }
+.kit-version a { color: inherit; }
+body.btop .kit-version { color: #56606e; }
+.upd-new { font-size: 1.1em; color: #2e7d32; }

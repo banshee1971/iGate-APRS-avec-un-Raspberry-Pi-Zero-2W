@@ -443,6 +443,11 @@ def check_os():
     return {'count': len(pkgs), 'packages': pkgs[:400]}
 
 
+def clean_version(v):
+    v = (v or '').strip()
+    return v if re.fullmatch(r'\d+(\.\d+){1,3}', v) else ''
+
+
 def check_kit(env):
     d = kit_dir(env)
     if not d:
@@ -463,6 +468,9 @@ def check_kit(env):
         'remote': git('rev-parse', '--short', '@{u}'),
         'fetch_error': fetch.returncode != 0,
         'dirty': bool(git('status', '--porcelain', '--untracked-files=no')),
+        # Numéro de version : fichier VERSION du dépôt (installé) et de GitHub (après fetch)
+        'version': clean_version(git('show', 'HEAD:VERSION')),
+        'remote_version': clean_version(git('show', '@{u}:VERSION')),
     }
     if not info['local']:
         return {'error': f"Impossible de lire le dépôt git dans {d}"}

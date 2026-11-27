@@ -27,7 +27,7 @@ function aprs_admin_header($title, $active, array $opts = []) {
     <title><?php echo h($title); ?> - <?php echo h(aprs_title($s)); ?></title>
     <?php echo aprs_i18n_js(); ?>
     <?php if (!empty($opts['leaflet'])) echo aprs_leaflet_tags(); ?>
-    <link rel="stylesheet" href="/admin/admin.css?v=8">
+    <link rel="stylesheet" href="/admin/admin.css?v=9">
 </head>
 <body class="<?php echo h($opts['body_class'] ?? ''); ?>">
 <div class="container">
@@ -61,7 +61,16 @@ function aprs_admin_header($title, $active, array $opts = []) {
     <?php
 }
 
+/** Numéro de version installé (copié par install.sh), '' si inconnu. */
+function aprs_kit_version() {
+    $v = trim((string)@file_get_contents('/usr/local/share/aprs-igate/VERSION'));
+    return preg_match('/^\d+(\.\d+){1,3}$/', $v) ? $v : '';
+}
+
 function aprs_admin_footer() {
+    $v = aprs_kit_version();
+    echo '<p class="kit-version">iGate APRS' . ($v !== '' ? ' v' . h($v) : '')
+       . ' · <a href="https://github.com/banshee1971/iGate-APRS-avec-un-Raspberry-Pi-Zero-2W" target="_blank" rel="noopener">GitHub ↗</a></p>';
     echo "</div>\n</body>\n</html>\n";
 }
 

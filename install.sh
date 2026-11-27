@@ -192,6 +192,7 @@ EOF
 install -m 644 "$KIT_DIR"/templates/*.tmpl "$KIT_DIR"/templates/99-rtlsdr-restart.rules \
     /usr/local/share/aprs-igate/templates/
 install -m 644 "$KIT_DIR/web/lib/settings.schema.json" /usr/local/share/aprs-igate/
+install -m 644 "$KIT_DIR/VERSION" /usr/local/share/aprs-igate/VERSION 2>/dev/null || true
 install -m 755 "$KIT_DIR/backend/aprs-apply-config" /usr/local/sbin/aprs-apply-config
 install -m 755 "$KIT_DIR/backend/aprs-admin-passwd" /usr/local/sbin/aprs-admin-passwd
 install -m 755 "$KIT_DIR/backend/aprs-audio-tap" /usr/local/bin/aprs-audio-tap

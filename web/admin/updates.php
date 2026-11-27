@@ -106,7 +106,12 @@ aprs_flash_box($_GET['msg'] ?? '');
         <?php elseif (isset($kit['error'])): ?>
             <p class="error-text">❌ <?php echo h(t_msg($kit['error'])); ?></p>
         <?php else: ?>
-            <p class="muted"><?php echo th('Version installée : %s du %s (branche %s)', $kit['local'] ?? '?', $kit['local_date'] ?? '?', $kit['branch'] ?? '?'); ?></p>
+            <?php
+                $cur = ($kit['version'] ?? '') !== '' ? 'v' . $kit['version'] : t('sans numéro');
+                $new = ($kit['remote_version'] ?? '') !== '' ? 'v' . $kit['remote_version'] : (string)($kit['remote'] ?? '');
+            ?>
+            <p><?php echo t('Version actuelle : %s', '<strong>' . h($cur) . '</strong>'); ?>
+               <span class="muted"><?php echo th('(commit %s du %s, branche %s)', $kit['local'] ?? '?', $kit['local_date'] ?? '?', $kit['branch'] ?? '?'); ?></span></p>
             <?php if (!empty($kit['fetch_error'])): ?>
                 <p class="error-text">⚠️ <?php echo th('GitHub injoignable : la liste ci-dessous peut être incomplète.'); ?></p>
             <?php endif; ?>
@@ -114,8 +119,12 @@ aprs_flash_box($_GET['msg'] ?? '');
                 <p class="error-text">⚠️ <?php echo th('Des fichiers du kit ont été modifiés sur le Pi : la mise à jour risque d\'échouer.'); ?></p>
             <?php endif; ?>
             <?php if (intval($kit['behind'] ?? 0) === 0): ?>
-                <p>✅ <?php echo th('L\'iGate est à jour.'); ?></p>
+                <p>✅ <?php echo th('L\'iGate est à jour.'); ?>
+                   <?php if (($kit['remote_version'] ?? '') !== '' && ($kit['remote_version'] ?? '') !== ($kit['version'] ?? '')): ?>
+                       <span class="muted"><?php echo th('(GitHub : v%s)', $kit['remote_version']); ?></span>
+                   <?php endif; ?></p>
             <?php else: ?>
+                <p class="upd-new"><?php echo t('Nouvelle version disponible : %s', '<strong>' . h($new) . '</strong>'); ?></p>
                 <p><strong><?php echo th('%d nouveauté(s) disponible(s) :', intval($kit['behind'])); ?></strong></p>
                 <ul class="upd-commits">
                     <?php foreach ($kit['commits'] ?? [] as $c): ?>
