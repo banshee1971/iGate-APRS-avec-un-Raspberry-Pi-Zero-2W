@@ -9,6 +9,7 @@ const APRS_ADMIN_TABS = [
     'reporting'=> ['reporting.php',  '📡 Reporting aprs.fi'],
     'direwolf' => ['direwolf.php',   '🐺 Direwolf'],
     'network'  => ['network.php',    '🌐 Réseau'],
+    'updates'  => ['updates.php',    '🔄 Mises à jour'],
     'system'   => ['system.php',     '📊 Système'],
     'account'  => ['account.php',    '👤 Compte'],
 ];
@@ -26,7 +27,7 @@ function aprs_admin_header($title, $active, array $opts = []) {
     <title><?php echo h($title); ?> - <?php echo h(aprs_title($s)); ?></title>
     <?php echo aprs_i18n_js(); ?>
     <?php if (!empty($opts['leaflet'])) echo aprs_leaflet_tags(); ?>
-    <link rel="stylesheet" href="/admin/admin.css?v=6">
+    <link rel="stylesheet" href="/admin/admin.css?v=7">
 </head>
 <body class="<?php echo h($opts['body_class'] ?? ''); ?>">
 <div class="container">
@@ -215,15 +216,16 @@ function aprs_pisugar() {
     fclose($web);
     $host = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_ADDR'] ?? 'localhost'));
     if (!preg_match('/^[A-Za-z0-9.\-]+$|^\[[0-9a-fA-F:]+\]$/', $host)) $host = $_SERVER['SERVER_ADDR'] ?? 'localhost';
-    $cache = ['url' => 'http://' . $host . ':8421', 'battery' => null, 'charging' => false];
+    $cache = ['url' => 'http://' . $host . ':8421', 'battery' => null, 'charging' => false, 'voltage' => null];
     $api = @fsockopen('127.0.0.1', 8423, $errno, $errstr, 0.3);
     if ($api) {
         stream_set_timeout($api, 0, 400000);
-        foreach (['battery', 'battery_charging'] as $q) {
+        foreach (['battery', 'battery_charging', 'battery_v'] as $q) {
             fwrite($api, "get $q\n");
             $line = (string)fgets($api, 128);
             if (preg_match('/^battery:\s*([\d.]+)/', $line, $m)) $cache['battery'] = (float)$m[1];
             if (preg_match('/^battery_charging:\s*true/i', $line)) $cache['charging'] = true;
+            if (preg_match('/^battery_v:\s*([\d.]+)/', $line, $m)) $cache['voltage'] = (float)$m[1];
         }
         fclose($api);
     }

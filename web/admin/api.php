@@ -42,6 +42,32 @@ function read_file($path) {
 }
 
 // =================================================================== Système
+/**
+ * Tensions mesurables selon le modèle :
+ *  - cœur du processeur (tous les Pi, vcgencmd : www-data doit être dans le groupe video) ;
+ *  - entrée 5 V : seulement sur Pi 5 (PMIC). Le Pi Zero 2W ne la mesure pas,
+ *    son firmware signale seulement une sous-tension (< 4,63 V) ;
+ *  - batterie du PiSugar, si son service répond.
+ */
+function api_power() {
+    $p = ['model' => trim(str_replace("\0", '', (string)read_file('/proc/device-tree/model'))),
+          'core_v' => null, 'ext5v' => null, 'battery_v' => null, 'battery_pct' => null, 'vcgencmd' => false];
+    $vc = aprs_shell('vcgencmd measure_volts core');
+    if ($vc !== null && preg_match('/volt=([\d.]+)V/', $vc, $m)) {
+        $p['core_v'] = (float)$m[1];
+        $p['vcgencmd'] = true;
+    }
+    if ($p['vcgencmd'] && strpos($p['model'], 'Raspberry Pi 5') !== false) {
+        $adc = aprs_shell('vcgencmd pmic_read_adc EXT5V_V');
+        if ($adc !== null && preg_match('/=([\d.]+)V/', $adc, $m)) $p['ext5v'] = (float)$m[1];
+    }
+    if ($ps = aprs_pisugar()) {
+        $p['battery_v'] = $ps['voltage'];
+        $p['battery_pct'] = $ps['battery'];
+    }
+    return $p;
+}
+
 function api_metrics() {
     $out = ['time' => microtime(true), 'hz' => 100];
 
@@ -74,6 +100,8 @@ function api_metrics() {
             'throttled_since_boot' => (bool)($t & 0x40000),
         ];
     }
+
+    $out['power'] = api_power();
 
     // Mémoire (en kio)
     $mem = [];

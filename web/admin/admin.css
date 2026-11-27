@@ -184,3 +184,30 @@ input.readonly-code { background: #f3f0ff; font-family: Consolas, monospace; fon
 .net-h3 { margin: 20px 0 10px; font-size: 1.05em; color: #4b3f9e; }
 .net-sub { margin-top: 12px; }
 .net-pending { display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap; }
+
+/* Exporter / importer la configuration */
+.io-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.io-box { border: 1px solid #e3e6ef; border-radius: 6px; padding: 14px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.io-box h3 { margin: 0; font-size: 1.05em; }
+.io-box p { margin: 0; }
+.check-line { display: flex; gap: 6px; align-items: center; font-size: 0.95em; }
+.error-text { color: #c62828; }
+
+/* Mises à jour */
+.upd-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.9em; }
+.upd-table th, .upd-table td { text-align: left; padding: 4px 8px; border-bottom: 1px solid #eee; }
+.upd-commits { margin: 6px 0 0; padding-left: 20px; }
+.upd-commits li { margin: 3px 0; }
+details summary { cursor: pointer; color: #5568d3; }
+
+/* Page Système : jauges d'alimentation */
+.pwr-gauges { display: flex; flex-wrap: wrap; gap: 18px; justify-content: space-around; }
+.pwr-gauge { width: 220px; text-align: center; }
+.pwr-gauge svg { width: 220px; height: 130px; display: block; }
+.pwr-gauge .needle { transform-box: view-box; transform-origin: 110px 110px; transition: transform 0.8s ease-out; }
+.pwr-gauge .g-title { color: #e5e5e5; font-weight: 600; }
+.pwr-gauge .g-ideal { color: #7f8a99; font-size: 0.85em; margin-top: 2px; }
+.pwr-gauge .g-min { color: #56606e; font-size: 0.8em; }
+.pwr-state { width: 220px; display: flex; flex-direction: column; justify-content: center; gap: 6px; text-align: center; }
+.pwr-state .big { font-size: 1.3em; font-weight: 600; }
+.pwr-note { color: #7f8a99; font-size: 0.85em; margin-top: 10px; }

@@ -4,6 +4,7 @@
 //  (le compte est créé par install.sh ; oublié ? sudo aprs-admin-passwd)
 // =====================================================================
 require __DIR__ . '/../lib/admin.php';
+require __DIR__ . '/../lib/config_io.php';
 aprs_require_login();
 aprs_csrf_check();
 
@@ -17,6 +18,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $op = $_POST['op'] ?? '';
     if ($op === 'save') {
         [$settings, $errors] = aprs_handle_save($sections, './');
+    } elseif ($op === 'export') {
+        $gz = gzencode(json_encode(aprs_config_export(!empty($_POST['with_account'])),
+                                   JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n", 9);
+        header('Content-Type: application/gzip');
+        header('Content-Disposition: attachment; filename="' . aprs_config_export_name() . '"');
+        header('Content-Length: ' . strlen($gz));
+        header('Cache-Control: no-store');
+        echo $gz;
+        exit;
+    } elseif ($op === 'import') {
+        [$ok, $msg, $warnings] = aprs_config_import($_FILES['config'] ?? []);
+        $_SESSION['aprs_import_warnings'] = $warnings;
+        header('Location: ./?msg=' . urlencode($msg));
+        exit;
     } elseif (in_array($op, APRS_ACTIONS, true) && $op !== 'apply') {
         $labels = [
             'restart'    => 'Redémarrage des services demandé.',
@@ -27,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'gain-test'  => 'Test des gains demandé (environ 6 minutes).',
             'reboot'     => 'Redémarrage du Pi demandé. La page reviendra dans 1 à 2 minutes.',
         ];
-        $msg = aprs_queue_action($op) ? $labels[$op] : 'Impossible de déposer la demande.';
+        $msg = (isset($labels[$op]) && aprs_queue_action($op)) ? $labels[$op] : 'Impossible de déposer la demande.';
         header('Location: ./?msg=' . urlencode($msg));
         exit;
     }
@@ -63,9 +78,16 @@ if (is_readable(APRS_DB_PATH)) {
     }
 }
 $station = aprs_station($settings);
+$import_warnings = $_SESSION['aprs_import_warnings'] ?? [];
+unset($_SESSION['aprs_import_warnings']);
 
 aprs_admin_header(t('⚙️ Configuration de l\'iGate'), 'config', ['leaflet' => true, 'refresh' => $pending > 0 ? 3 : 0]);
 aprs_flash_box($flash, $errors);
+if ($import_warnings) {
+    echo '<div class="warn"><ul style="margin: 0; padding-left: 20px;">';
+    foreach ($import_warnings as $w) echo '<li>' . h($w) . '</li>';
+    echo '</ul></div>';
+}
 ?>
     <?php if (!aprs_is_configured($settings)): ?>
         <div class="warn"><strong><?php echo th('👋 Bienvenue !'); ?></strong> <?php echo t('1) Entrez votre <strong>indicatif d\'appel</strong> dans l\'onglet %s ; 2) placez l\'iGate sur la carte ci-dessous et cliquez sur « Enregistrer et appliquer ». L\'iGate démarrera automatiquement. Les réglages radio et de décodage sont dans l\'onglet %s.',
@@ -127,6 +149,32 @@ aprs_flash_box($flash, $errors);
             <form method="POST" action="./"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="tiles"><button class="btn btn-secondary"><?php echo th('🗺️ Pré-télécharger les tuiles autour de l\'iGate'); ?></button></form>
             <form method="POST" action="./" onsubmit="return confirm(t('Effacer toutes les tuiles gardées sur le Pi ? La carte Offline sera vide.'));"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="clear-tiles"><button class="btn btn-secondary"><?php echo th('🧹 Vider le cache des tuiles'); ?></button></form>
             <form method="POST" action="./" onsubmit="return confirm(t('Redémarrer le Raspberry Pi ?'));"><?php echo aprs_csrf_field(); ?><input type="hidden" name="op" value="reboot"><button class="btn btn-danger"><?php echo th('⏻ Redémarrer le Pi'); ?></button></form>
+        </div>
+    </div>
+
+    <!-- Exporter / importer -->
+    <div class="card">
+        <h2><?php echo th('📦 Exporter / importer la configuration'); ?></h2>
+        <div class="io-grid">
+            <form method="POST" action="./" class="io-box">
+                <?php echo aprs_csrf_field(); ?>
+                <input type="hidden" name="op" value="export">
+                <h3><?php echo th('Exporter'); ?></h3>
+                <p class="muted"><?php echo th('Télécharge un fichier compressé (.json.gz) avec tous les réglages et les profils réseau.'); ?></p>
+                <label class="check-line"><input type="checkbox" name="with_account"> <?php echo th('Inclure le compte administrateur (mot de passe chiffré)'); ?></label>
+                <button class="btn btn-secondary"><?php echo th('⬇️ Exporter la configuration'); ?></button>
+                <p class="help muted"><?php echo th('Le fichier contient les mots de passe Wi-Fi des profils réseau : gardez-le en lieu sûr.'); ?></p>
+            </form>
+            <form method="POST" action="./" enctype="multipart/form-data" class="io-box"
+                  onsubmit="return confirm(t('Remplacer les réglages actuels par ceux du fichier ? Les services seront redémarrés.'));">
+                <?php echo aprs_csrf_field(); ?>
+                <input type="hidden" name="op" value="import">
+                <h3><?php echo th('Importer'); ?></h3>
+                <p class="muted"><?php echo th('Restaure un fichier exporté : les réglages sont vérifiés, appliqués, puis les services redémarrent.'); ?></p>
+                <input type="file" name="config" accept=".gz,.json,application/gzip,application/json" required>
+                <button class="btn btn-secondary"><?php echo th('⬆️ Importer et appliquer'); ?></button>
+                <p class="help muted"><?php echo th('Les profils réseau sont enregistrés mais pas activés : activez-les vous-même dans l\'onglet Réseau.'); ?></p>
+            </form>
         </div>
     </div>
 

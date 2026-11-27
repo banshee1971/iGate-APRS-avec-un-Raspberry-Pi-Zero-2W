@@ -10,10 +10,13 @@ const APRS_STATUS_FILE   = APRS_STATE_DIR . '/status.json';
 const APRS_LOG_FILE      = APRS_STATE_DIR . '/apply.log';
 const APRS_DB_PATH       = '/var/www/aprs/packets.db';
 const APRS_UNCONFIGURED  = 'N0CALL';
-const APRS_ACTIONS       = ['apply', 'restart', 'backup', 'usb-backup', 'tiles', 'clear-tiles', 'gain-test', 'reboot', 'network', 'network-confirm'];
+const APRS_ACTIONS       = ['apply', 'restart', 'backup', 'usb-backup', 'tiles', 'clear-tiles', 'gain-test', 'reboot', 'network', 'network-confirm',
+                            'update-check', 'os-upgrade', 'kit-update'];
 const APRS_TILE_DIR      = '/var/www/aprs/tiles';
 const APRS_AUTH_FILE     = APRS_STATE_DIR . '/admin-auth.json';
 const APRS_GAIN_RESULTS  = APRS_STATE_DIR . '/gain-test.txt';
+const APRS_UPDATES_FILE  = APRS_STATE_DIR . '/updates.json';
+const APRS_UPDATE_LOG    = APRS_STATE_DIR . '/update.log';
 
 function aprs_schema() {
     static $schema = null;

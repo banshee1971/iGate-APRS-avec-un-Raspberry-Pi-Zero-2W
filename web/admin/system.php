@@ -17,26 +17,33 @@ aprs_admin_header(t('📊 Système'), 'system', ['body_class' => 'btop']);
             <div class="bt-kv"><span><?php echo th('alimentation'); ?></span><span id="cpu-power">–</span></div>
         </div>
 
+        <div class="bt-box wide">
+            <span class="bt-title">²<b><?php echo th('alimentation'); ?></b></span>
+            <span class="bt-right" id="pwr-model">…</span>
+            <div class="pwr-gauges" id="pwr-gauges"></div>
+            <div class="pwr-note" id="pwr-note"></div>
+        </div>
+
         <div class="bt-box bt-mem">
-            <span class="bt-title">²<b><?php echo th('mémoire'); ?></b></span>
+            <span class="bt-title">³<b><?php echo th('mémoire'); ?></b></span>
             <span class="bt-right" id="mem-total">…</span>
             <div id="mem-rows"></div>
         </div>
 
         <div class="bt-box bt-disk">
-            <span class="bt-title">³<b><?php echo th('disques'); ?></b></span>
+            <span class="bt-title">⁴<b><?php echo th('disques'); ?></b></span>
             <div id="disk-rows"></div>
         </div>
 
         <div class="bt-box bt-net">
-            <span class="bt-title">⁴<b><?php echo th('réseau'); ?></b></span>
+            <span class="bt-title">⁵<b><?php echo th('réseau'); ?></b></span>
             <span class="bt-right" id="net-iface">…</span>
             <canvas class="bt-graph" id="net-graph" style="height: 80px;"></canvas>
             <div id="net-rows"></div>
         </div>
 
         <div class="bt-box bt-proc wide">
-            <span class="bt-title">⁵<b><?php echo th('processus'); ?></b></span>
+            <span class="bt-title">⁶<b><?php echo th('processus'); ?></b></span>
             <span class="bt-right" id="proc-count">…</span>
             <table class="bt-ps">
                 <colgroup><col style="width:70px"><col><col style="width:110px"><col style="width:70px"><col style="width:90px"><col style="width:70px"></colgroup>
@@ -109,6 +116,82 @@ aprs_admin_header(t('📊 Système'), 'system', ['body_class' => 'btop']);
     }
     function push(arr, v) { arr.push(v); if (arr.length > HISTORY) arr.shift(); }
 
+    // ---------------- Jauges d'alimentation (aiguille + zones vert/jaune/rouge)
+    var RED = '#ff5555', YEL = '#f1fa8c', GRN = '#50fa7b';
+    var GAUGES = {
+        ext5v: {title: t('Entrée 5 V'), min: 4.4, max: 5.6, dec: 2, ideal: t('idéal : 5,0 à 5,25 V'),
+                zones: [[4.4, 4.63, RED], [4.63, 4.85, YEL], [4.85, 5.25, GRN], [5.25, 5.4, YEL], [5.4, 5.6, RED]], ticks: [4.4, 4.8, 5.2, 5.6]},
+        core_v: {title: t('Cœur du processeur'), min: 0.8, max: 1.5, dec: 3, ideal: t('idéal : 1,2 à 1,4 V (réglé par le Pi)'),
+                 zones: [[0.8, 0.95, RED], [0.95, 1.1, YEL], [1.1, 1.4, GRN], [1.4, 1.45, YEL], [1.45, 1.5, RED]], ticks: [0.8, 1.0, 1.2, 1.4]},
+        battery_v: {title: t('Batterie PiSugar'), min: 3.0, max: 4.4, dec: 2, ideal: t('idéal : 3,7 à 4,2 V'),
+                    zones: [[3.0, 3.4, RED], [3.4, 3.7, YEL], [3.7, 4.25, GRN], [4.25, 4.4, YEL]], ticks: [3.0, 3.5, 4.0, 4.4]}
+    };
+    var gaugeMin = {};
+    function num(v, dec) { var s = v.toFixed(dec); return window.APRS_LANG === 'en' ? s : s.replace('.', ','); }
+    function frac(g, v) { return Math.max(0, Math.min(1, (v - g.min) / (g.max - g.min))); }
+    function pt(r, f) { var a = (-90 + 180 * f) * Math.PI / 180; return [(110 + r * Math.sin(a)).toFixed(1), (110 - r * Math.cos(a)).toFixed(1)]; }
+    function arc(r, f0, f1) { var a = pt(r, f0), b = pt(r, f1); return 'M' + a[0] + ' ' + a[1] + ' A' + r + ' ' + r + ' 0 0 1 ' + b[0] + ' ' + b[1]; }
+    function gaugeSvg(key, g) {
+        var s = '<svg viewBox="0 0 220 130" aria-label="' + esc(g.title) + '">';
+        g.zones.forEach(function (z) {
+            s += '<path d="' + arc(88, frac(g, z[0]), frac(g, z[1])) + '" stroke="' + z[2] + '" stroke-width="14" fill="none" opacity="0.85"/>';
+        });
+        g.ticks.forEach(function (v) {
+            var f = frac(g, v), a = pt(78, f), b = pt(70, f), l = pt(56, f);
+            s += '<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" stroke="#7f8a99" stroke-width="2"/>';
+            s += '<text x="' + l[0] + '" y="' + (parseFloat(l[1]) + 4) + '" fill="#7f8a99" font-size="11" text-anchor="middle">' + num(v, 1) + '</text>';
+        });
+        // repère de la valeur la plus basse vue depuis l'ouverture de la page
+        s += '<line class="needle" id="gmin-' + key + '" x1="110" y1="14" x2="110" y2="28" stroke="' + RED + '" stroke-width="3" style="transform: rotate(-90deg); opacity: 0"/>';
+        s += '<line class="needle" id="gneedle-' + key + '" x1="110" y1="110" x2="110" y2="30" stroke="#e5e5e5" stroke-width="3" stroke-linecap="round" style="transform: rotate(-90deg)"/>';
+        s += '<circle cx="110" cy="110" r="7" fill="#e5e5e5"/></svg>';
+        return '<div class="pwr-gauge" id="gauge-' + key + '"><div class="g-title">' + esc(g.title) + '</div>' + s +
+               '<div class="g-val" id="gval-' + key + '">–</div><div class="g-ideal">' + esc(g.ideal) + '</div>' +
+               '<div class="g-min" id="gminv-' + key + '"></div></div>';
+    }
+    function zoneColor(g, v) {
+        for (var i = 0; i < g.zones.length; i++) if (v >= g.zones[i][0] && v <= g.zones[i][1]) return g.zones[i][2];
+        return RED;
+    }
+    function setGauge(key, v) {
+        var g = GAUGES[key];
+        if (!$('gauge-' + key)) $('pwr-gauges').insertAdjacentHTML('beforeend', gaugeSvg(key, g));
+        $('gneedle-' + key).style.transform = 'rotate(' + (-90 + 180 * frac(g, v)).toFixed(1) + 'deg)';
+        $('gval-' + key).innerHTML = '<span style="font-size: 1.4em; font-weight: 600; color:' + zoneColor(g, v) + '">' + num(v, g.dec) + ' V</span>';
+        if (gaugeMin[key] === undefined || v < gaugeMin[key]) gaugeMin[key] = v;
+        var mk = $('gmin-' + key);
+        mk.style.transform = 'rotate(' + (-90 + 180 * frac(g, gaugeMin[key])).toFixed(1) + 'deg)';
+        mk.style.opacity = '1';
+        $('gminv-' + key).textContent = t('minimum vu : %s V', num(gaugeMin[key], g.dec));
+    }
+    function renderPower(p, thr) {
+        if (!p) return;
+        $('pwr-model').textContent = p.model || '';
+        // Entrée 5 V : vraie mesure sur Pi 5, sinon seulement l'alerte de sous-tension du firmware
+        var box = $('pwr-supply');
+        if (p.ext5v !== null) {
+            if (box) box.parentNode.removeChild(box);
+            setGauge('ext5v', p.ext5v);
+        } else {
+            if (!box) {
+                $('pwr-gauges').insertAdjacentHTML('afterbegin', '<div class="pwr-state" id="pwr-supply"><div class="g-title">' + esc(t('Alimentation 5 V')) +
+                    '</div><div class="big" id="pwr-supply-state">–</div><div class="g-ideal">' + esc(t('idéal : 5,0 à 5,25 V')) + '</div></div>');
+            }
+            var st = $('pwr-supply-state');
+            if (!thr) st.innerHTML = '<span style="color:#7f8a99">' + esc(t('inconnue')) + '</span>';
+            else if (thr.undervolt_now) st.innerHTML = '<span class="bt-hot">⚡ ' + esc(t('SOUS-TENSION')) + '</span>';
+            else if (thr.undervolt_since_boot) st.innerHTML = '<span class="bt-warm">⚠️ ' + esc(t('sous-tension depuis le démarrage')) + '</span>';
+            else st.innerHTML = '<span style="color:' + GRN + '">✓ ' + esc(t('suffisante (plus de 4,63 V)')) + '</span>';
+        }
+        if (p.core_v !== null) setGauge('core_v', p.core_v);
+        if (p.battery_v !== null) setGauge('battery_v', p.battery_v);
+        var notes = [];
+        if (p.ext5v === null) notes.push(t('Ce modèle ne mesure pas la tension de son entrée 5 V : le firmware signale seulement une chute sous 4,63 V. Une sous-tension cause des pertes de paquets et des déconnexions du dongle SDR.'));
+        if (!p.vcgencmd) notes.push(t('Tension du cœur indisponible : relancez sudo ./install.sh pour donner à la page l\'accès à vcgencmd.'));
+        notes.push(t('Le repère rouge sur le bord de la jauge marque la valeur la plus basse vue depuis l\'ouverture de la page.'));
+        $('pwr-note').textContent = notes.join(' ');
+    }
+
     function render(d) {
         var dt = prev ? Math.max(0.1, d.time - prev.time) : 0;
 
@@ -141,6 +224,7 @@ aprs_admin_header(t('📊 Système'), 'system', ['body_class' => 'btop']);
         else if (thr.throttled_now) $('cpu-power').innerHTML = '<span class="bt-hot">' + esc(t('ralenti (chaleur ou tension)')) + '</span>';
         else if (thr.undervolt_since_boot) $('cpu-power').innerHTML = '<span class="bt-warm">' + esc(t('sous-tension depuis le démarrage')) + '</span>';
         else $('cpu-power').textContent = 'OK';
+        renderPower(d.power, thr);
 
         // ---------------- Mémoire (kio)
         var m = d.mem, K = 1024;

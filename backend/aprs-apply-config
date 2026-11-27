@@ -14,6 +14,8 @@ Usage :
   aprs-apply-config               applique les réglages (= action "apply")
   aprs-apply-config --queue       traite les demandes en attente (systemd)
   aprs-apply-config <action>      apply | restart | backup | usb-backup | tiles | clear-tiles | gain-test | reboot
+                                  | update-check | os-upgrade | kit-update
+  aprs-apply-config finish <os|kit> <code>   fin d'une mise à jour (appelé par la tâche elle-même)
   aprs-apply-config get <clé>     affiche un réglage (ex.: get lat, get station)
 """
 import json
@@ -38,9 +40,13 @@ LOG = STATE + '/apply.log'
 BOOT_CONFIG = '/boot/firmware/config.txt'
 
 ACTIONS = ('apply', 'restart', 'backup', 'usb-backup', 'tiles', 'clear-tiles', 'gain-test', 'reboot',
-           'network', 'network-confirm')
+           'network', 'network-confirm', 'update-check', 'os-upgrade', 'kit-update')
 TILE_DIR = '/var/www/aprs/tiles'
 GAIN_RESULTS = STATE + '/gain-test.txt'
+UPDATES = STATE + '/updates.json'       # résultat de la dernière recherche de mises à jour
+UPDATE_LOG = STATE + '/update.log'      # sortie de la dernière mise à jour (lue par /admin)
+KIT_NAME = 'iGate-APRS-avec-un-Raspberry-Pi-Zero-2W'
+UPDATE_UNITS = {'os': 'aprs-os-upgrade', 'kit': 'aprs-kit-update'}
 # Caractères jamais acceptés dans une valeur (protection des fichiers générés)
 UNSAFE = re.compile(r'[\x00-\x1f"\'`$\\;|&<>]')
 UNCONFIGURED_CALL = 'N0CALL'
@@ -362,11 +368,191 @@ def action_reboot(env):
     return True, 'Redémarrage du Pi en cours...'
 
 
+# ------------------------------------------------------------ mises à jour
+# La recherche se fait ici (1 à 2 minutes). Les mises à jour elles-mêmes
+# tournent dans une unité systemd transitoire, séparée d'aprs-admin.service :
+# install.sh réinstalle ce script et relance nginx/PHP, et une mise à jour
+# du système peut durer longtemps sans bloquer les autres demandes.
+def write_json(path, data):
+    tmp = path + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
+
+
+def read_json(path, default=None):
+    try:
+        with open(path, encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+def kit_dir(env):
+    """Dossier git du kit (noté par install.sh, sinon emplacement du guide)."""
+    for d in (env.get('KIT_DIR', ''), os.path.join(env['IGATE_HOME'], KIT_NAME)):
+        if d and os.path.isdir(os.path.join(d, '.git')) and os.path.isfile(os.path.join(d, 'install.sh')):
+            return d
+    return None
+
+
+def as_user(env, cmd):
+    """git tourne sous l'utilisateur de l'iGate, propriétaire du dossier."""
+    return ['runuser', '-u', env['IGATE_USER'], '--'] + cmd
+
+
+def reboot_needed():
+    """Vrai si un paquet demande un redémarrage ou si un nouveau noyau a été installé."""
+    if os.path.exists('/run/reboot-required'):
+        return True
+    try:
+        with open('/proc/uptime') as f:
+            boot = datetime.now().timestamp() - float(f.read().split()[0])
+        running = os.uname().release
+        for name in os.listdir('/lib/modules'):
+            path = os.path.join('/lib/modules', name)
+            if name != running and os.path.getmtime(path) > boot + 60:
+                return True
+    except (OSError, ValueError):
+        pass
+    return False
+
+
+def check_os():
+    envc = {**os.environ, 'DEBIAN_FRONTEND': 'noninteractive', 'LC_ALL': 'C'}
+    r = run(['apt-get', 'update', '-q'], capture_output=True, text=True, env=envc)
+    if r.returncode != 0:
+        return {'error': 'apt-get update a échoué (Internet disponible ?)'}
+    r = subprocess.run(['apt', 'list', '--upgradable'], capture_output=True, text=True, env=envc)
+    pkgs = []
+    for line in r.stdout.splitlines():
+        m = re.match(r'^([^/\s]+)/\S+\s+(\S+)\s+\S+\s+\[upgradable from: ([^\]]+)\]', line)
+        if m:
+            pkgs.append({'name': m.group(1), 'new': m.group(2), 'old': m.group(3)})
+    return {'count': len(pkgs), 'packages': pkgs[:400]}
+
+
+def check_kit(env):
+    d = kit_dir(env)
+    if not d:
+        return {'error': 'Dossier du kit introuvable (installé sans git ?)'}
+
+    def git(*args):
+        return subprocess.run(as_user(env, ['git', '-C', d] + list(args)),
+                              capture_output=True, text=True).stdout.strip()
+
+    fetch = run(as_user(env, ['git', '-C', d, 'fetch', '--quiet']), capture_output=True, text=True)
+    info = {
+        'dir': d,
+        'branch': git('rev-parse', '--abbrev-ref', 'HEAD'),
+        'local': git('rev-parse', '--short', 'HEAD'),
+        'local_date': git('log', '-1', '--format=%cs'),
+        'remote': git('rev-parse', '--short', '@{u}'),
+        'fetch_error': fetch.returncode != 0,
+        'dirty': bool(git('status', '--porcelain', '--untracked-files=no')),
+    }
+    behind = git('rev-list', '--count', 'HEAD..@{u}')
+    info['behind'] = int(behind) if behind.isdigit() else 0
+    info['commits'] = []
+    for line in git('log', '--format=%h|%cs|%s', '-n', '40', 'HEAD..@{u}').splitlines():
+        parts = line.split('|', 2)
+        if len(parts) == 3:
+            info['commits'].append({'id': parts[0], 'date': parts[1], 'subject': parts[2]})
+    return info
+
+
+def do_update_check(env):
+    info = {'checked': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'os': check_os(), 'kit': check_kit(env), 'reboot_required': reboot_needed()}
+    write_json(UPDATES, info)
+    return info
+
+
+def action_update_check(env):
+    info = do_update_check(env)
+    n_os = info['os'].get('count', 0) if 'error' not in info['os'] else '?'
+    n_kit = info['kit'].get('behind', 0) if 'error' not in info['kit'] else '?'
+    return True, f"Recherche terminée : {n_os} paquet(s) système, {n_kit} mise(s) à jour de l'iGate."
+
+
+def spawn_update(kind, script):
+    unit = UPDATE_UNITS[kind]
+    # Une seule à la fois : les deux utilisent apt (install.sh installe des paquets)
+    for other in UPDATE_UNITS.values():
+        if run(['systemctl', 'is-active', '--quiet', other]).returncode == 0:
+            return False, 'Une mise à jour est déjà en cours.'
+    run(['systemctl', 'reset-failed', unit], capture_output=True)
+    with open(UPDATE_LOG, 'w', encoding='utf-8') as f:
+        f.write(f"=== {datetime.now():%Y-%m-%d %H:%M:%S} ===\n")
+    os.chmod(UPDATE_LOG, 0o644)
+    r = run(['systemd-run', '--unit=' + unit, '--collect', '--quiet',
+             '--property=TimeoutStartSec=infinity', '/bin/bash', '-c', script])
+    if r.returncode != 0:
+        return False, 'Impossible de lancer la mise à jour.'
+    return True, 'Mise à jour lancée : suivez-la dans l\'onglet Mises à jour.'
+
+
+def action_os_upgrade(env):
+    script = f"""exec >>{UPDATE_LOG} 2>&1
+export DEBIAN_FRONTEND=noninteractive
+echo '>>> apt-get update'
+apt-get update -q
+echo '>>> apt-get upgrade'
+apt-get -y -q -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold upgrade --with-new-pkgs
+rc=$?
+apt-get -y -q autoremove
+/usr/local/sbin/aprs-apply-config finish os $rc
+"""
+    return spawn_update('os', script)
+
+
+def action_kit_update(env):
+    d = kit_dir(env)
+    if not d:
+        return False, 'Dossier du kit introuvable (installé sans git ?)'
+    user = env['IGATE_USER']
+    script = f"""exec >>{UPDATE_LOG} 2>&1
+cd '{d}' || exit 1
+echo '>>> git pull'
+if runuser -u '{user}' -- git pull --ff-only; then
+    echo '>>> ./install.sh --skip-upgrade'
+    IGATE_USER='{user}' ./install.sh --skip-upgrade </dev/null
+    rc=$?
+else
+    rc=$?
+    echo 'git pull a échoué : des fichiers du kit ont-ils été modifiés à la main ?'
+fi
+/usr/local/sbin/aprs-apply-config finish kit $rc
+"""
+    return spawn_update('kit', script)
+
+
+def finish_update(env, kind, code):
+    """Appelé par la tâche de mise à jour à la fin : nouveau bilan et statut."""
+    ok = code == '0'
+    log(f"=== Fin de la mise à jour ({kind}) : code {code}")
+    try:
+        do_update_check(env)
+    except Exception as e:  # le statut compte plus que le bilan
+        log(f"  bilan impossible : {e}")
+    if kind == 'os':
+        msg = 'Mise à jour du système terminée.' if ok else 'Échec de la mise à jour du système (voir le journal).'
+    else:
+        msg = "Mise à jour de l'iGate terminée." if ok else "Échec de la mise à jour de l'iGate (voir le journal)."
+    if ok and reboot_needed():
+        msg += ' Redémarrez le Pi pour terminer.'
+    log(('✓ ' if ok else '✗ ') + msg)
+    write_status('update-' + kind, ok, msg)
+    return ok
+
+
 HANDLERS = {
     'apply': action_apply, 'restart': action_restart, 'backup': action_backup,
     'usb-backup': action_usb_backup, 'tiles': action_tiles,
     'clear-tiles': action_clear_tiles, 'gain-test': action_gain_test, 'reboot': action_reboot,
     'network': action_network, 'network-confirm': action_network_confirm,
+    'update-check': action_update_check, 'os-upgrade': action_os_upgrade, 'kit-update': action_kit_update,
 }
 PAYLOAD_ACTIONS = ('network',)   # actions qui reçoivent un paramètre (contenu du fichier de demande)
 
@@ -418,6 +604,8 @@ def main():
     if os.geteuid() != 0:
         raise SystemExit("Ce script doit être lancé en root (sudo).")
     env = read_install_env()
+    if arg == 'finish' and len(sys.argv) == 4 and sys.argv[2] in UPDATE_UNITS:
+        sys.exit(0 if finish_update(env, sys.argv[2], sys.argv[3]) else 1)
     if arg == '--queue':
         process_queue(env)
         sys.exit(0)  # le résultat est dans status.json ; ne pas bloquer l'unité .path

@@ -149,11 +149,36 @@ automatically if the Pi has no network 3 minutes after boot.
 > without an Ethernet cable, the iGate keeps receiving and showing packets locally,
 > but cannot send them to aprs.fi (no Internet).
 
+### 🔄 Updates
+
+No more command line to keep the Pi up to date:
+
+- **🔎 Check now**: lists the system updates (Raspberry Pi OS, `apt`) and the new
+  commits in this GitHub repository;
+- **Install system updates**: the same as `sudo apt update && sudo apt upgrade`
+  (5 to 30 minutes on a Pi Zero 2W; the iGate keeps running);
+- **Update the iGate**: the same as `git pull` followed by `sudo ./install.sh --skip-upgrade`;
+  your settings, account and packets are kept.
+
+The log of the last update is shown live, and a banner offers to reboot the Pi when a
+kernel update requires it.
+
+**📦 Export / import settings** (Configuration tab): "Export" downloads a compressed file
+(`.json.gz`) with all settings and network profiles (and, if you tick the box, the
+administrator account with its encrypted password). "Import" re-validates every setting,
+applies it and restarts the services: handy to reinstall a Pi or set up a second one.
+Imported network profiles are saved but not activated. The file contains the Wi-Fi
+passwords: keep it somewhere safe.
+
 ### 📊 System
 
 A **btop**-style monitor, refreshed every 2 seconds: CPU (graph, each core,
-frequency, temperature), power (undervoltage detected), memory, disks
-(used/free), network (throughput) and the most active processes.
+frequency, temperature), **power** (needle gauges with the ideal zone: processor core
+voltage, 5 V input on models that measure it, PiSugar battery, and under-voltage alert),
+memory, disks (used/free), network (throughput) and the most active processes.
+
+> The Pi Zero 2W does not measure its 5 V input voltage: its firmware only reports a drop
+> below 4.63 V. The 5 V needle gauge only appears on a Pi 5.
 
 ### 👤 Account
 

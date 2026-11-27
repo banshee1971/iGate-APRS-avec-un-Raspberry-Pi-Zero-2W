@@ -1,6 +1,6 @@
 🇬🇧 [English version](README.en.md)
 
-📘 **Guide illustré d'installation et d'utilisation** : [en ligne](docs/GUIDE.fr.md))
+📘 **Guide illustré d'installation et d'utilisation** : [en ligne](docs/GUIDE.fr.md)
 
 # iGate APRS avec un Raspberry Pi Zero 2W
 
@@ -92,6 +92,13 @@ Cet onglet affiche aussi l'état du système (services, modèle du dongle, paque
 cache) et des boutons : redémarrer les services, sauvegarder, copier sur clé USB,
 pré-télécharger ou vider les tuiles, redémarrer le Pi.
 
+**📦 Exporter / importer la configuration** : « Exporter » télécharge un fichier compressé
+(`.json.gz`) avec tous les réglages et les profils réseau (et, si vous cochez la case, le
+compte administrateur avec son mot de passe chiffré). « Importer » revalide chaque réglage,
+l'applique et redémarre les services : pratique pour réinstaller un Pi ou en préparer un
+deuxième. Les profils réseau importés sont enregistrés mais pas activés. Le fichier contient
+les mots de passe Wi-Fi : gardez-le en lieu sûr.
+
 ### 📡 Reporting aprs.fi
 
 L'envoi des paquets reçus vers APRS-IS, le réseau qui alimente [aprs.fi](https://aprs.fi) :
@@ -149,11 +156,30 @@ automatiquement si le Pi n'a aucun réseau 3 minutes après le démarrage.
 > sans câble Ethernet, l'iGate continue de recevoir et d'afficher les paquets localement,
 > mais ne peut pas les envoyer à aprs.fi (pas d'Internet).
 
+### 🔄 Mises à jour
+
+Plus besoin de la ligne de commande pour mettre le Pi à jour :
+
+- **🔎 Rechercher maintenant** : liste les mises à jour du système (Raspberry Pi OS, `apt`)
+  et les nouveautés de ce dépôt GitHub ;
+- **Installer les mises à jour du système** : l'équivalent de `sudo apt update && sudo apt upgrade`
+  (5 à 30 minutes sur un Pi Zero 2W, l'iGate continue de fonctionner) ;
+- **Mettre à jour l'iGate** : l'équivalent de `git pull` puis `sudo ./install.sh --skip-upgrade` ;
+  vos réglages, votre compte et vos paquets sont conservés.
+
+Le journal de la dernière mise à jour s'affiche en direct, et un bandeau propose de
+redémarrer le Pi quand une mise à jour du noyau le demande.
+
 ### 📊 Système
 
 Un moniteur façon **btop**, rafraîchi toutes les 2 secondes : CPU (graphique, chaque cœur,
-fréquence, température), alimentation (sous-tension détectée), mémoire, disques
-(utilisé/libre), réseau (débits) et processus les plus actifs.
+fréquence, température), **alimentation** (jauges à aiguille avec la zone idéale : tension du
+cœur du processeur, entrée 5 V sur les modèles qui la mesurent, batterie du PiSugar, et
+alerte de sous-tension), mémoire, disques (utilisé/libre), réseau (débits) et processus les
+plus actifs.
+
+> Le Pi Zero 2W ne mesure pas la tension de son entrée 5 V : son firmware signale seulement
+> une chute sous 4,63 V. La jauge 5 V à aiguille n'apparaît que sur un Pi 5.
 
 ### 👤 Compte
 

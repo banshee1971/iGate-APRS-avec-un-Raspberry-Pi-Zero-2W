@@ -149,8 +149,8 @@ if lsmod | grep -q '^dvb_usb_rtl28xxu'; then
 fi
 usermod -a -G plugdev,dialout,systemd-journal "$IGATE_USER"
 ok "$IGATE_USER ajouté aux groupes plugdev, dialout, systemd-journal"
-# La page /admin -> Direwolf lit le journal de l'iGate
-usermod -a -G systemd-journal www-data
+# La page /admin lit le journal de l'iGate (Direwolf) et les tensions du Pi (vcgencmd, groupe video)
+usermod -a -G systemd-journal,video www-data
 
 # ---------------------------------------------------------------------
 step "3/9 Direwolf"
@@ -186,6 +186,8 @@ cat > /etc/aprs-igate/install.env <<EOF
 # Écrit par install.sh — utilisateur qui fait tourner l'iGate
 IGATE_USER=$IGATE_USER
 IGATE_HOME=$IGATE_HOME
+# Dossier git du kit (mises à jour depuis l'onglet « Mises à jour »)
+KIT_DIR=$KIT_DIR
 EOF
 install -m 644 "$KIT_DIR"/templates/*.tmpl "$KIT_DIR"/templates/99-rtlsdr-restart.rules \
     /usr/local/share/aprs-igate/templates/
