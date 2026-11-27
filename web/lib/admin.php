@@ -185,6 +185,17 @@ function aprs_svc_state($unit) {
     return $out === null ? '?' : trim($out);
 }
 
+/**
+ * Demandes en attente + celle que le service root traite en ce moment
+ * (il retire la demande de la file dès qu'il la prend : une recherche de
+ * mises à jour ou un test de gain tourne ensuite plusieurs minutes).
+ */
+function aprs_admin_busy_count() {
+    $n = aprs_pending_actions();
+    if (in_array(aprs_svc_state('aprs-admin.service'), ['activating', 'active', 'reloading'], true)) $n++;
+    return $n;
+}
+
 function aprs_svc_pill($state) {
     $cls = $state === 'active' ? 'ok' : ($state === '?' ? 'unk' : 'bad');
     return '<span class="pill ' . $cls . '">' . h($state) . '</span>';

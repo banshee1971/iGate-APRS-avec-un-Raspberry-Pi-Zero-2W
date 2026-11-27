@@ -25,7 +25,7 @@ $running = [];
 foreach (['os' => 'aprs-os-upgrade.service', 'kit' => 'aprs-kit-update.service'] as $kind => $unit) {
     if (in_array(aprs_svc_state($unit), ['active', 'activating'], true)) $running[] = $kind;
 }
-$pending = aprs_pending_actions();
+$pending = aprs_admin_busy_count();
 $status  = aprs_status();
 // Journal : sans la barre de progression de dpkg (« (Reading database ... 45% »)
 $log     = is_readable(APRS_UPDATE_LOG) ? (file(APRS_UPDATE_LOG) ?: []) : [];

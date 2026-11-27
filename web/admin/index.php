@@ -64,7 +64,7 @@ function tile_cache_mb() {
 $dongle  = aprs_dongle_present();
 $tile_mb = tile_cache_mb();
 $status  = aprs_status();
-$pending = aprs_pending_actions();
+$pending = aprs_admin_busy_count();
 $log     = is_readable(APRS_LOG_FILE) ? array_slice(file(APRS_LOG_FILE), -25) : [];
 
 $today = null;
