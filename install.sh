@@ -348,6 +348,31 @@ for unit in nginx aprs-admin.path; do
 done
 
 IPS="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -v ':' | grep -v '^$' || true)"
+
+# Déjà configuré (indicatif entré, compte conservé) : c'est une mise à jour,
+# un résumé court suffit (aussi affiché dans /admin -> Mises à jour)
+CALLSIGN="$(/usr/local/sbin/aprs-apply-config get callsign 2>/dev/null || true)"
+if [ "$ADMIN_MODE" = keep ] && [ -n "$CALLSIGN" ] && [ "$CALLSIGN" != N0CALL ]; then
+    STATION="$(/usr/local/sbin/aprs-apply-config get station 2>/dev/null || echo "$CALLSIGN")"
+    VERSION="$(cat "$KIT_DIR/VERSION" 2>/dev/null || echo '?')"
+    IGATE_STATE="$(systemctl is-active aprs-igate.service 2>/dev/null || true)"
+    echo
+    echo "======================================================"
+    echo " ✅ Mise à jour terminée ! / Update complete!"
+    echo
+    echo "    Version : v$VERSION"
+    echo "    iGate $STATION : $IGATE_STATE"
+    for ip in $IPS; do
+        echo "    http://$ip/admin"
+    done
+    if [ "$REBOOT_NEEDED" = yes ]; then
+        echo
+        echo " ⚠️  Redémarrez le Pi pour terminer / Reboot the Pi to finish :  sudo reboot"
+    fi
+    echo "======================================================"
+    exit 0
+fi
+
 echo
 echo "======================================================"
 echo " ✅ Installation terminée ! / Installation complete!"
