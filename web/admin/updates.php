@@ -27,7 +27,11 @@ foreach (['os' => 'aprs-os-upgrade.service', 'kit' => 'aprs-kit-update.service']
 }
 $pending = aprs_pending_actions();
 $status  = aprs_status();
-$log     = is_readable(APRS_UPDATE_LOG) ? array_slice(file(APRS_UPDATE_LOG), -40) : [];
+// Journal : sans la barre de progression de dpkg (« (Reading database ... 45% »)
+$log     = is_readable(APRS_UPDATE_LOG) ? (file(APRS_UPDATE_LOG) ?: []) : [];
+$log     = array_slice(array_values(array_filter($log, function ($line) {
+    return !preg_match('/^\(Reading database \.\.\.\s*(\d+%)?\s*$/', $line);
+})), -60);
 $busy    = $running || $pending > 0;
 
 aprs_admin_header(t('🔄 Mises à jour'), 'updates', ['refresh' => $busy ? 5 : 0]);
