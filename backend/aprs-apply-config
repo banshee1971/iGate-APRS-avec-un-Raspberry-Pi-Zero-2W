@@ -397,9 +397,19 @@ def kit_dir(env):
     return None
 
 
-def as_user(env, cmd):
-    """git tourne sous l'utilisateur de l'iGate, propriétaire du dossier."""
-    return ['runuser', '-u', env['IGATE_USER'], '--'] + cmd
+def repo_owner(d):
+    """Propriétaire du dossier du kit (pi, ou root s'il a été cloné dans /root)."""
+    try:
+        return pwd.getpwuid(os.stat(d).st_uid).pw_name
+    except (OSError, KeyError):
+        return 'root'
+
+
+def as_owner(d, cmd):
+    """git tourne sous le propriétaire du dossier : sinon accès refusé
+    (dossier dans /root) ou « dubious ownership » (git refuse le dépôt)."""
+    owner = repo_owner(d)
+    return cmd if owner == 'root' else ['runuser', '-u', owner, '--'] + cmd
 
 
 def reboot_needed():
@@ -439,10 +449,12 @@ def check_kit(env):
         return {'error': 'Dossier du kit introuvable (installé sans git ?)'}
 
     def git(*args):
-        return subprocess.run(as_user(env, ['git', '-C', d] + list(args)),
+        return subprocess.run(as_owner(d, ['git', '-C', d] + list(args)),
                               capture_output=True, text=True).stdout.strip()
 
-    fetch = run(as_user(env, ['git', '-C', d, 'fetch', '--quiet']), capture_output=True, text=True)
+    fetch = run(as_owner(d, ['git', '-C', d, 'fetch', '--quiet']), capture_output=True, text=True)
+    if fetch.returncode != 0:
+        log('  ' + (fetch.stderr or '').strip().replace('\n', ' | ')[:300])
     info = {
         'dir': d,
         'branch': git('rev-parse', '--abbrev-ref', 'HEAD'),
@@ -452,6 +464,8 @@ def check_kit(env):
         'fetch_error': fetch.returncode != 0,
         'dirty': bool(git('status', '--porcelain', '--untracked-files=no')),
     }
+    if not info['local']:
+        return {'error': f"Impossible de lire le dépôt git dans {d}"}
     behind = git('rev-list', '--count', 'HEAD..@{u}')
     info['behind'] = int(behind) if behind.isdigit() else 0
     info['commits'] = []
@@ -498,8 +512,8 @@ def action_os_upgrade(env):
 export DEBIAN_FRONTEND=noninteractive
 echo '>>> apt-get update'
 apt-get update -q
-echo '>>> apt-get upgrade'
-apt-get -y -q -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold upgrade --with-new-pkgs
+echo '>>> apt-get full-upgrade'
+apt-get -y -q -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold full-upgrade
 rc=$?
 apt-get -y -q autoremove
 /usr/local/sbin/aprs-apply-config finish os $rc
@@ -512,10 +526,12 @@ def action_kit_update(env):
     if not d:
         return False, 'Dossier du kit introuvable (installé sans git ?)'
     user = env['IGATE_USER']
+    owner = repo_owner(d)
+    git_pull = 'git pull --ff-only' if owner == 'root' else f"runuser -u '{owner}' -- git pull --ff-only"
     script = f"""exec >>{UPDATE_LOG} 2>&1
 cd '{d}' || exit 1
 echo '>>> git pull'
-if runuser -u '{user}' -- git pull --ff-only; then
+if {git_pull}; then
     echo '>>> ./install.sh --skip-upgrade'
     IGATE_USER='{user}' ./install.sh --skip-upgrade </dev/null
     rc=$?

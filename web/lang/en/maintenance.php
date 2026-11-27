@@ -73,6 +73,7 @@ return [
     'Redémarrez le Pi pour terminer.' => 'Reboot the Pi to finish.',
     'apt-get update a échoué (Internet disponible ?)' => 'apt-get update failed (is the Internet reachable?)',
     'Dossier du kit introuvable (installé sans git ?)' => 'Kit folder not found (installed without git?)',
+    'Impossible de lire le dépôt git dans %s' => 'Cannot read the git repository in %s',
 
     // ---- Jauges d'alimentation
     'Entrée 5 V' => '5 V input',
