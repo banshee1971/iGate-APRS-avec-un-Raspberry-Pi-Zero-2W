@@ -206,7 +206,13 @@ automatique, selon la langue du navigateur).
   ou de logiciel, et « direct » ou « via » le digipeater qui l'a relayé. Les formats
   compressés et Mic-E (radios Kenwood, Yaesu…) sont décodés. Le paquet brut reste
   disponible d'un clic.
-- **🗺️ Carte** : carte OpenStreetMap des stations (dernière heure à 7 jours).
+- **🗺️ Carte** : carte OpenStreetMap des stations (dernière heure à 7 jours), mise à jour
+  toute seule aux 30 secondes. Chaque station affiche depuis combien de temps date sa position
+  (vert : moins de 10 min, orange : moins d'une heure, gris : plus vieux). Les **trajets** relient
+  les positions successives sur la durée choisie (15 min à 24 h). Les **groupes de favoris**
+  (gardés dans votre navigateur) n'affichent que certaines stations : cochez ou décochez pour
+  les modifier, ou tapez un indicatif (`VE2ABC*` = toutes les stations de VE2ABC). L'option
+  « Suivre » recentre la carte sur les stations affichées à chaque mise à jour.
 - **📴 Mode Offline** : la même carte, mais uniquement avec les tuiles déjà en cache sur le Pi.
 
 ### Cache des tuiles de carte

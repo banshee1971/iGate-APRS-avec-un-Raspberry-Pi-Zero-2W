@@ -205,7 +205,12 @@ interface language; default is automatic, following the browser language).
   type, and "direct" or "via" the digipeater that relayed it. Compressed and
   Mic-E formats (Kenwood, Yaesu radios…) are decoded. The raw packet is still
   one click away.
-- **🗺️ Map**: OpenStreetMap map of the stations (last hour to 7 days).
+- **🗺️ Map**: OpenStreetMap map of the stations (last hour to 7 days), refreshed every
+  30 seconds. Each station shows how old its position is (green: under 10 min, orange: under
+  an hour, grey: older). **Tracks** link successive positions over the chosen duration
+  (15 min to 24 h). **Favorite groups** (kept in your browser) show only some stations: check
+  or uncheck to edit them, or type a callsign (`VE2ABC*` = all of VE2ABC's stations). The
+  "Follow" option re-centers the map on the displayed stations at every refresh.
 - **📴 Offline mode**: the same map, but using only the tiles already cached on the Pi.
 
 ### Map tile cache
