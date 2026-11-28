@@ -212,7 +212,8 @@ automatique, selon la langue du navigateur).
   les positions successives sur la durée choisie (15 min à 24 h). Les **groupes de favoris**
   (gardés dans votre navigateur) n'affichent que certaines stations : cochez ou décochez pour
   les modifier, ou tapez un indicatif (`VE2ABC*` = toutes les stations de VE2ABC). L'option
-  « Suivre » recentre la carte sur les stations affichées à chaque mise à jour.
+  « Suivre » recentre la carte sur les stations affichées à chaque mise à jour. La carte
+  « Mode Offline » a les mêmes fonctions (mêmes groupes), avec les tuiles du cache seulement.
 - **📴 Mode Offline** : la même carte, mais uniquement avec les tuiles déjà en cache sur le Pi.
 
 ### Cache des tuiles de carte

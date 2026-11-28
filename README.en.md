@@ -210,7 +210,8 @@ interface language; default is automatic, following the browser language).
   an hour, grey: older). **Tracks** link successive positions over the chosen duration
   (15 min to 24 h). **Favorite groups** (kept in your browser) show only some stations: check
   or uncheck to edit them, or type a callsign (`VE2ABC*` = all of VE2ABC's stations). The
-  "Follow" option re-centers the map on the displayed stations at every refresh.
+  "Follow" option re-centers the map on the displayed stations at every refresh. The
+  "Offline mode" map has the same features (same groups), using cached tiles only.
 - **📴 Offline mode**: the same map, but using only the tiles already cached on the Pi.
 
 ### Map tile cache

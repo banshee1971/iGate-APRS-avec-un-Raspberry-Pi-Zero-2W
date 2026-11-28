@@ -3,35 +3,13 @@
 // du Pi (/var/www/aprs/tiles) — celles pré-téléchargées et celles vues en
 // naviguant sur la carte normale. Aucune requête vers Internet.
 require __DIR__ . '/lib/settings.php';
+require __DIR__ . '/lib/packets.php';
+require __DIR__ . '/lib/map_tracker.php';
 $S = aprs_load_settings();
 aprs_lang();   // choisit la langue (et pose le cookie ?lang=) avant toute sortie
-$db = new SQLite3(APRS_DB_PATH, SQLITE3_OPEN_READONLY);
 
 $map_hours = isset($_GET['hours']) ? intval($_GET['hours']) : intval($S['map_default_hours']);
 
-// Récupérer les positions
-$sql = "SELECT
-            callsign,
-            latitude,
-            longitude,
-            datetime(MAX(timestamp), 'localtime') as last_seen,
-            COUNT(*) as packet_count
-        FROM packets
-        WHERE latitude IS NOT NULL
-            AND longitude IS NOT NULL
-            AND timestamp > datetime('now', '-' || ? || ' hours')
-        GROUP BY callsign, latitude, longitude
-        ORDER BY last_seen DESC";
-
-$stmt = $db->prepare($sql);
-$stmt->bindValue(1, $map_hours);
-$result = $stmt->execute();
-
-$map_data = array();
-while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-    $map_data[] = $row;
-}
-$db->close();
 
 $hours_choices = [1 => t('Dernière heure'), 6 => t('%d dernières heures', 6), 12 => t('%d dernières heures', 12),
                   24 => t('%d dernières heures', 24), 48 => t('%d dernières heures', 48), 168 => t('%d derniers jours', 7)];
@@ -45,6 +23,7 @@ $hours_choices = array_map('ucfirst', $hours_choices);   // « last 6 hours » -
     <title><?php echo h(aprs_title($S)); ?> - <?php echo th('Carte Offline'); ?></title>
     <?php echo aprs_leaflet_tags(); ?>
     <?php echo aprs_i18n_js(); ?>
+    <?php echo aprs_map_tracker_css(); ?>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -143,105 +122,9 @@ $hours_choices = array_map('ucfirst', $hours_choices);   // « last 6 hours » -
                 </form>
             </div>
 
-            <div class="map-info">
-                <strong>📍 <?php echo th('%d station(s)', count($map_data)); ?></strong> <?php echo th('avec position dans les'); ?> <strong><?php echo th('%d dernières heures', $map_hours); ?></strong>
-            </div>
-
-            <div id="map"></div>
-
-            <div class="legend">
-                <h3><?php echo th('Légende:'); ?></h3>
-                <div class="legend-item">🔴 = <?php echo th('Station APRS'); ?></div>
-                <div class="legend-item">🟢 = <?php echo th('Votre iGate (%s)', aprs_station($S)); ?></div>
-                <div class="legend-item"><?php echo th('Cliquez sur une station pour voir les détails'); ?></div>
-            </div>
-
-            <div class="station-list">
-                <h3><?php echo th('Liste des stations:'); ?></h3>
-                <?php foreach ($map_data as $i => $station): ?>
-                    <div class="station-item" onclick="focusStation(<?php echo $i; ?>)">
-                        <span class="station-callsign"><?php echo h($station['callsign']); ?></span><br>
-                        <span class="coords">
-                            Lat: <?php echo number_format($station['latitude'], 4); ?>°
-                            Lon: <?php echo number_format($station['longitude'], 4); ?>°
-                        </span> |
-                        <?php echo th('Vu:'); ?> <?php echo h($station['last_seen']); ?> |
-                        <?php echo th('Paquets:'); ?> <?php echo intval($station['packet_count']); ?>
-                    </div>
-                <?php endforeach; ?>
-            </div>
+            <?php aprs_map_tracker($S, $map_hours, '/tiles-cache/{z}/{x}/{y}.png', false); ?>
         </div>
     </div>
 
-    <script>
-        var stations = <?php echo json_encode($map_data); ?>;
-        var igate = {
-            name: <?php echo json_encode(aprs_station($S)); ?>,
-            lat: <?php echo json_encode($S['lat']); ?>,
-            lon: <?php echo json_encode($S['lon']); ?>
-        };
-        var markers = [];
-
-        function esc(s) {
-            return String(s).replace(/[&<>"']/g, function (c) {
-                return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
-            });
-        }
-
-        if (typeof L === 'undefined') {
-            document.getElementById('map').innerHTML =
-                '<div class="no-leaflet">' + esc(t('La bibliothèque de carte (Leaflet) n\'est pas installée sur le Pi.')) + ' ' +
-                t('Relancez %s avec Internet pour l\'installer.', '<code>sudo ./install.sh</code>') + '</div>';
-        } else {
-            var map = L.map('map').setView([igate.lat, igate.lon], 10);
-
-            // /tiles-cache/ = tuiles du cache du Pi SEULEMENT (jamais Internet).
-            // Une tuile absente laisse voir le quadrillage gris.
-            L.tileLayer('/tiles-cache/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors ' + t('(cache local)'),
-                maxZoom: 18,
-                errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
-            }).addTo(map);
-
-            // Votre iGate
-            L.circleMarker([igate.lat, igate.lon], {
-                radius: 10, color: '#ffffff', weight: 2, fillColor: '#4CAF50', fillOpacity: 1
-            }).addTo(map).bindPopup('<strong>' + esc(igate.name) + '</strong><br>' + t('Votre iGate'));
-
-            // Stations
-            var bounds = [[igate.lat, igate.lon]];
-            stations.forEach(function (station) {
-                var m = L.circleMarker([station.latitude, station.longitude], {
-                    radius: 8, color: '#ffffff', weight: 2, fillColor: '#ff5722', fillOpacity: 1
-                }).addTo(map);
-                m.bindTooltip(esc(station.callsign), {permanent: true, direction: 'top', offset: [0, -8]});
-                m.bindPopup(
-                    '<div style="font-family: Arial; min-width: 200px;">' +
-                    '<strong style="font-size: 1.2em; color: #667eea;">' + esc(station.callsign) + '</strong><br>' +
-                    '<hr style="margin: 8px 0;">' +
-                    '📍 <strong>' + t('Position:') + '</strong><br>' +
-                    'Lat: ' + station.latitude.toFixed(4) + '°<br>' +
-                    'Lon: ' + station.longitude.toFixed(4) + '°<br><br>' +
-                    '🕐 <strong>' + t('Dernière réception:') + '</strong><br>' + esc(station.last_seen) + '<br><br>' +
-                    '📦 <strong>' + t('Paquets reçus:') + '</strong> ' + station.packet_count +
-                    '</div>'
-                );
-                markers.push(m);
-                bounds.push([station.latitude, station.longitude]);
-            });
-
-            if (bounds.length > 1) {
-                map.fitBounds(bounds, {padding: [50, 50]});
-            }
-        }
-
-        // Focus sur une station depuis la liste
-        function focusStation(i) {
-            if (typeof L === 'undefined' || !markers[i]) return;
-            map.setView(markers[i].getLatLng(), Math.max(map.getZoom(), 12));
-            markers[i].openPopup();
-            document.getElementById('map').scrollIntoView({behavior: 'smooth'});
-        }
-    </script>
 </body>
 </html>
